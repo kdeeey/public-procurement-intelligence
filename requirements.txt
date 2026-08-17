@@ -1,0 +1,54 @@
+# Scraping
+requests
+beautifulsoup4
+scrapy
+
+# PDF / Documents
+pymupdf
+pillow
+
+# OCR
+pytesseract
+opencv-python
+
+# NLP
+spacy
+
+# Data Engineering
+pandas
+numpy
+pyspark
+pyarrow
+
+# Database
+sqlalchemy
+psycopg2-binary
+alembic
+
+# Object Storage
+minio
+
+# Machine Learning
+scikit-learn
+
+# Backend
+fastapi
+uvicorn[standard]
+pydantic
+pydantic-settings
+
+# Security
+python-jose[cryptography]
+passlib[bcrypt]
+python-multipart
+
+# Dashboard
+streamlit
+plotly
+
+# Testing
+pytest
+pytest-cov
+
+# Env
+python-dotenv

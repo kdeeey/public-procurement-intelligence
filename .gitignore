@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Environment
+.env
+
+# Data (généré/scrapé — pas versionné, trop volumineux et régénérable)
+data/raw/
+data/processed/
+
+# data/samples/ et data/synthetic/ restent versionnés (petits, curés à la main)
+
+# ML models (générés par l'entraînement, pas versionnés)
+ai/models/*.pkl
+
+# Docker
+*.log
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Jupyter
+.ipynb_checkpoints/
