@@ -13,6 +13,11 @@ data/raw/
 data/processed/
 
 # data/samples/ et data/synthetic/ restent versionnés (petits, curés à la main)
+# EXCEPTION : le corpus des 400 extraits de PV (343 Mo) est scrapé et régénérable
+# via scripts/download_extraits_pv.py — seul son manifeste est versionné, car il
+# porte les clés de jointure (refConsultation) et la traçabilité des sources.
+data/samples/PVs/*
+!data/samples/PVs/manifest.jsonl
 
 # ML models (générés par l'entraînement, pas versionnés)
 ai/models/*.pkl
