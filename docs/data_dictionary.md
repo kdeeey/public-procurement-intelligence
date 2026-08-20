@@ -10,10 +10,10 @@ Dernière mise à jour : 17/08/2026
 
 ## 1. Vue d'ensemble des sources
 
-Trois types de pages/documents alimentent le pipeline, tous rattachés à une **`reference`** commune :
+Trois types de pages/documents alimentent le pipeline, tous rattachés à un même marché, identifié par **`refConsultation`** :
 
 ```text
-                    reference (clé commune)
+                 refConsultation (clé fiable)
                           │
         ┌─────────────────┼─────────────────┐
         ▼                 ▼                 ▼
@@ -29,6 +29,31 @@ Trois types de pages/documents alimentent le pipeline, tous rattachés à une **
 - **Consultations** (recherche/listing + détail) → métadonnées du marché, disponibles en HTML, sans OCR.
 - **Extrait de PV** (icône grise "pv", menu "Tous les extraits de PV") → source la plus riche pour l'attribution : liste tous les concurrents et leurs montants, pas seulement le gagnant.
 - **Résultats définitifs** (icône rouge) → source plus simple, ne donne que le gagnant et son montant. Sert de source de secours si le PV n'est pas disponible pour un marché donné.
+
+### ⚠️ Clé de jointure — `reference` seule ne suffit pas
+
+> **Correction (20/08/2026)** : ce document affirmait auparavant que `reference` était la « clé commune » des trois sources. C'est **faux**, et mesuré comme tel sur le corpus réel.
+
+`reference` est un **numéro de séquence interne à chaque acheteur**, pas un identifiant global. Deux marchés sans aucun rapport, chez deux acheteurs différents, portent couramment la même référence.
+
+**Preuve mesurée** — la référence `04/2026` désigne simultanément quatre acheteurs distincts :
+
+```text
+04/2026 → RTAH  / CRBF - Commune rurale de BNI FRASSEN
+04/2026 → RTT   / CRL  - Commune LAAOUAMA
+04/2026 → RSMD  / CUAI - Commune urbaine de AIT IAAZA
+04/2026 → RO    / CRT  - COMMUNE DE TAFOGHALT
+```
+
+Le même phénomène touche `01/2026`, `11/2026` et toutes les références courtes de type `NN/AAAA`. Sur la collecte de 1 350 consultations de contexte, 44 « correspondances » par référence textuelle avec le corpus PV se sont révélées être **100 % des faux positifs** entre acheteurs différents.
+
+| Clé | Fiabilité | Usage |
+|---|---|---|
+| **`refConsultation`** | ✅ Identifiant interne du portail, globalement unique | **Clé de jointure à utiliser.** A produit 400/400 (100 %) de jointure lors de la collecte |
+| (`acheteur_public`, `reference`) | ✅ Clé composite acceptable | Repli quand `refConsultation` est absent (ex. document PDF isolé sans URL source) |
+| `reference` seule | ❌ **Ambiguë entre acheteurs** | Ne jamais l'utiliser seule comme clé — uniquement comme attribut d'affichage |
+
+`refConsultation` est extractible de toute URL du portail (`...&refConsultation=1034020&orgAcronyme=f9f`) et doit être conservé sur chaque entité pour garantir la traçabilité (README §55).
 
 **Sources écartées ou secondaires** :
 - "Listes des marchés attribués" — dépôt de fichiers non structuré et incohérent, secondaire uniquement.
@@ -68,7 +93,8 @@ Champs confirmés réels, capturés depuis la page de détail d'une consultation
 
 | Champ | Notes |
 |---|---|
-| `reference` | Clé de jointure vers `Procurement` |
+| `reference` | Attribut d'affichage — **pas une clé** (ambiguë entre acheteurs, voir §1). Joindre sur `refConsultation`, ou à défaut sur (`acheteur_public`, `reference`) |
+| `refConsultation` | **Clé de jointure vers `Procurement`** |
 | `objet` | Parfois redondant avec `Procurement.objet`, à dédupliquer |
 | `acheteur_public` (maître d'ouvrage) | |
 | `date_ouverture_plis` | |
@@ -118,7 +144,8 @@ Ne pas modéliser comme un simple booléen "gagné/perdu" — au moins 3 statuts
 | Champ | Notes |
 |---|---|
 | `document_id` | |
-| `reference` | Jointure vers `Procurement` |
+| `reference` | Attribut d'affichage — **pas une clé** (ambiguë entre acheteurs, voir §1) |
+| `refConsultation` | **Jointure vers `Procurement`** |
 | `document_type` | `CONSULTATION` \| `PV` \| `RESULTAT_DEFINITIF` \| `RAPPORT` \| `AUTRE` |
 | `source_url` | |
 | `file_hash` | |
@@ -138,7 +165,9 @@ Tentative d'extraction de texte natif (PyMuPDF)
  └── Vide / illisible          → Tesseract OCR sur l'image de la page
 ```
 
-Confirmé sur l'échantillon réel : la majorité des PV/résultats sont des PDF natifs (générés directement), mais certains sont des scans téléphone (CamScanner) sans texte exploitable. Les deux cas existent en pratique — le pipeline OCR du README (§11) était donc la bonne conception dès le départ, maintenant validée par des preuves réelles.
+Confirmé sur l'échantillon réel : les deux cas existent en pratique — le pipeline OCR du README (§11) était donc la bonne conception dès le départ, maintenant validée par des preuves réelles.
+
+**Proportion mesurée (390 extraits de PV, 100 par an sur 2023-2026, 18/08/2026)** : **70,8 % de documents scannés** (276/390) contre 29,2 % de PDF natifs. Une première estimation, faite sur ~25 documents, annonçait l'inverse — elle est corrigée ici et dans [`discovery_notes.md`](discovery_notes.md) §2.11. L'OCR est donc le chemin principal du pipeline, pas un cas de repli : `is_ocr_required = True` sera la valeur dominante en base.
 
 ---
 
