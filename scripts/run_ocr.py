@@ -34,6 +34,22 @@ from ocr.pipeline import process_pdf_safe  # noqa: E402
 
 DEFAULT_DIRS = [REPO / "data/samples/PV", REPO / "data/samples/resultats"]
 
+# Excluded from every OCR run, by filename stem — the files themselves and
+# their manifest entry stay in place (corpus counts documented elsewhere:
+# etat_de_lart.md, data_dictionary.md, ideas.md — all assume 390 PDF / 400
+# manifest lines, 100/year), only the OCR pass skips them.
+#   65597f99...cf78 : confirmed OSD false positive (methodology.md §1.2) —
+#     page 2 gets rotated 180° incorrectly, destroying an already-legible
+#     page. The document-level confidence crosses the success threshold
+#     anyway (page 1 improved enough to mask it), so it would pass silently.
+#   9d2a5e07...1e1  : its only OCR page is genuinely blank (confirmed:
+#     mean luminosity 254.96/255, std 3.1) — no defect, just nothing to
+#     extract from that page; page 1 (native) already carries the content.
+EXCLUDED_STEMS = {
+    "65597f99d131db2a59fabcab9bb39929f9f1f9f1ff518a1ef60e0ccdb0bfcf78",
+    "9d2a5e0783702e0198d5bdfe23c3212d72fa6501308724cbb85bf03d2b6d01e1",
+}
+
 TABLE_KEYWORDS = ("classement", "concurrent 1", "concurrent 2", "montant par",
                   "liste des concurrents")
 
@@ -46,10 +62,17 @@ def main() -> int:
     args = ap.parse_args()
 
     dirs = args.dir or DEFAULT_DIRS
-    files = sorted(f for d in dirs for f in Path(d).glob("*.pdf"))
+    all_files = sorted(f for d in dirs for f in Path(d).glob("*.pdf"))
+    excluded = [f for f in all_files if f.stem in EXCLUDED_STEMS]
+    files = [f for f in all_files if f.stem not in EXCLUDED_STEMS]
     if args.limit:
         files = files[:args.limit]
 
+    if excluded:
+        print(f"{len(excluded)} fichier(s) exclu(s) (EXCLUDED_STEMS) :")
+        for f in excluded:
+            print(f"  - {f.name}")
+        print()
     print(f"{len(files)} fichiers\n")
     print(f"{'status':<20}{'conf':>7}{'pages':>7}  {'temps':>6}  fichier")
 
