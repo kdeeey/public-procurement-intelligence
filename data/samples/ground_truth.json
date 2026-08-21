@@ -1,0 +1,432 @@
+{
+  "description": "Verite terrain pour evaluation OCR/extraction (Issue 6/7). Valeurs attendues a remplir manuellement en lisant le PDF source -- ne jamais deriver ces valeurs de la sortie du pipeline OCR lui-meme, ca invaliderait la mesure.",
+  "cree_le": "2026-08-21",
+  "methode_selection": "2 documents natifs + 3 scannes par annee (2023-2026), tire aleatoirement (seed=42) parmi le corpus de 388 PV exploitables (390 - 2 exclus, voir methodology.md). N a pas vocation a etre represente proportionnellement (echantillon ~40% natif / 60% scan, vs ~29%/71% reel) -- objectif est la couverture des deux statuts, pas la proportion.",
+  "documents_exclus_du_tirage": [
+    "65597f99d131db2a59fabcab9bb39929f9f1f9f1ff518a1ef60e0ccdb0bfcf78",
+    "9d2a5e0783702e0198d5bdfe23c3212d72fa6501308724cbb85bf03d2b6d01e1"
+  ],
+  "statut": "SQUELETTE NON ANNOTE -- valeurs_attendues a completer manuellement avant utilisation par Issue 6/7",
+  "documents": [
+    {
+      "doc_id": "9140a66ac4fd6a9bcdfc57bfbb2a23efecf033658f948925aeabfc1b75a679f0",
+      "path": "data/samples/PVs/2023/9140a66ac4fd6a9bcdfc57bfbb2a23efecf033658f948925aeabfc1b75a679f0.pdf",
+      "annee": "2023",
+      "type_detecte_pipeline": "native",
+      "reference_scrapee_manifest": "08/2023/CRIDOE",
+      "acheteur_scrape_manifest": null,
+      "valeurs_attendues": {
+        "reference_pv": null,
+        "objet": null,
+        "acheteur_public": null,
+        "date_ouverture_plis": null,
+        "date_achevement_commission": null,
+        "concurrent_retenu": null,
+        "montant_offre_retenue": null,
+        "statut": null
+      },
+      "annote_par": null,
+      "date_annotation": null,
+      "notes": null
+    },
+    {
+      "doc_id": "672bb02cd03c9b88c60de6291bc7b2a6d88bf097a42d05415435bd88dfd1171e",
+      "path": "data/samples/PVs/2023/672bb02cd03c9b88c60de6291bc7b2a6d88bf097a42d05415435bd88dfd1171e.pdf",
+      "annee": "2023",
+      "type_detecte_pipeline": "native",
+      "reference_scrapee_manifest": "126/E/23",
+      "acheteur_scrape_manifest": null,
+      "valeurs_attendues": {
+        "reference_pv": null,
+        "objet": null,
+        "acheteur_public": null,
+        "date_ouverture_plis": null,
+        "date_achevement_commission": null,
+        "concurrent_retenu": null,
+        "montant_offre_retenue": null,
+        "statut": null
+      },
+      "annote_par": null,
+      "date_annotation": null,
+      "notes": null
+    },
+    {
+      "doc_id": "3a6a7d163182f13b6bd9ba3396c00d9539ac420b1f90b5008498120aaa859767",
+      "path": "data/samples/PVs/2023/3a6a7d163182f13b6bd9ba3396c00d9539ac420b1f90b5008498120aaa859767.pdf",
+      "annee": "2023",
+      "type_detecte_pipeline": "scan",
+      "reference_scrapee_manifest": "117/2023/ADERFES",
+      "acheteur_scrape_manifest": null,
+      "valeurs_attendues": {
+        "reference_pv": null,
+        "objet": null,
+        "acheteur_public": null,
+        "date_ouverture_plis": null,
+        "date_achevement_commission": null,
+        "concurrent_retenu": null,
+        "montant_offre_retenue": null,
+        "statut": null
+      },
+      "annote_par": null,
+      "date_annotation": null,
+      "notes": null
+    },
+    {
+      "doc_id": "f2b79a276ec5fb98c2481b9bd49c7f7552344fde9f14683efa8afb40ceef104a",
+      "path": "data/samples/PVs/2023/f2b79a276ec5fb98c2481b9bd49c7f7552344fde9f14683efa8afb40ceef104a.pdf",
+      "annee": "2023",
+      "type_detecte_pipeline": "scan",
+      "reference_scrapee_manifest": "2/AS/2023",
+      "acheteur_scrape_manifest": null,
+      "valeurs_attendues": {
+        "reference_pv": null,
+        "objet": null,
+        "acheteur_public": null,
+        "date_ouverture_plis": null,
+        "date_achevement_commission": null,
+        "concurrent_retenu": null,
+        "montant_offre_retenue": null,
+        "statut": null
+      },
+      "annote_par": null,
+      "date_annotation": null,
+      "notes": null
+    },
+    {
+      "doc_id": "ea9b61ee0d2b2d958e052c7117f6a2307091026f19efdb6d256cf191149c8a11",
+      "path": "data/samples/PVs/2023/ea9b61ee0d2b2d958e052c7117f6a2307091026f19efdb6d256cf191149c8a11.pdf",
+      "annee": "2023",
+      "type_detecte_pipeline": "scan",
+      "reference_scrapee_manifest": "A144/RRA/2023",
+      "acheteur_scrape_manifest": null,
+      "valeurs_attendues": {
+        "reference_pv": null,
+        "objet": null,
+        "acheteur_public": null,
+        "date_ouverture_plis": null,
+        "date_achevement_commission": null,
+        "concurrent_retenu": null,
+        "montant_offre_retenue": null,
+        "statut": null
+      },
+      "annote_par": null,
+      "date_annotation": null,
+      "notes": null
+    },
+    {
+      "doc_id": "07e10b7749a7d0152ad91e05d18ba13166296b460e813aff69725f648f4b276f",
+      "path": "data/samples/PVs/2024/07e10b7749a7d0152ad91e05d18ba13166296b460e813aff69725f648f4b276f.pdf",
+      "annee": "2024",
+      "type_detecte_pipeline": "native",
+      "reference_scrapee_manifest": "56/2024",
+      "acheteur_scrape_manifest": "MICIEN / PM - POSTE MAROC",
+      "valeurs_attendues": {
+        "reference_pv": null,
+        "objet": null,
+        "acheteur_public": null,
+        "date_ouverture_plis": null,
+        "date_achevement_commission": null,
+        "concurrent_retenu": null,
+        "montant_offre_retenue": null,
+        "statut": null
+      },
+      "annote_par": null,
+      "date_annotation": null,
+      "notes": null
+    },
+    {
+      "doc_id": "3d46704d054de5280514c3526cb9cc2b479d99b9e4bf42fef58ad7cd545278dd",
+      "path": "data/samples/PVs/2024/3d46704d054de5280514c3526cb9cc2b479d99b9e4bf42fef58ad7cd545278dd.pdf",
+      "annee": "2024",
+      "type_detecte_pipeline": "native",
+      "reference_scrapee_manifest": "38/2024",
+      "acheteur_scrape_manifest": "RSMD / CUDE - Commune urbaine de DCHEIRA ELJIHADIA",
+      "valeurs_attendues": {
+        "reference_pv": null,
+        "objet": null,
+        "acheteur_public": null,
+        "date_ouverture_plis": null,
+        "date_achevement_commission": null,
+        "concurrent_retenu": null,
+        "montant_offre_retenue": null,
+        "statut": null
+      },
+      "annote_par": null,
+      "date_annotation": null,
+      "notes": null
+    },
+    {
+      "doc_id": "1046ec535626a6bad1518886ca68b50bf2a83aef73372f10e1313872cc6c44a9",
+      "path": "data/samples/PVs/2024/1046ec535626a6bad1518886ca68b50bf2a83aef73372f10e1313872cc6c44a9.pdf",
+      "annee": "2024",
+      "type_detecte_pipeline": "scan",
+      "reference_scrapee_manifest": "19/2024",
+      "acheteur_scrape_manifest": null,
+      "valeurs_attendues": {
+        "reference_pv": null,
+        "objet": null,
+        "acheteur_public": null,
+        "date_ouverture_plis": null,
+        "date_achevement_commission": null,
+        "concurrent_retenu": null,
+        "montant_offre_retenue": null,
+        "statut": null
+      },
+      "annote_par": null,
+      "date_annotation": null,
+      "notes": null
+    },
+    {
+      "doc_id": "349e44bf07053ca6de523ea1d199215a081274d40722ca5ee361dcfa6d08a9f6",
+      "path": "data/samples/PVs/2024/349e44bf07053ca6de523ea1d199215a081274d40722ca5ee361dcfa6d08a9f6.pdf",
+      "annee": "2024",
+      "type_detecte_pipeline": "scan",
+      "reference_scrapee_manifest": "31/2024/CHUSM",
+      "acheteur_scrape_manifest": "MS / CHUSM - CENTRE HOSPITALO-UNIVERSITAIRE MOHAMMED VI - AGADIR",
+      "valeurs_attendues": {
+        "reference_pv": null,
+        "objet": null,
+        "acheteur_public": null,
+        "date_ouverture_plis": null,
+        "date_achevement_commission": null,
+        "concurrent_retenu": null,
+        "montant_offre_retenue": null,
+        "statut": null
+      },
+      "annote_par": null,
+      "date_annotation": null,
+      "notes": null
+    },
+    {
+      "doc_id": "2a36f6540d9177747368464ad02226075d3fd40c86a98efdb0d265304df29034",
+      "path": "data/samples/PVs/2024/2a36f6540d9177747368464ad02226075d3fd40c86a98efdb0d265304df29034.pdf",
+      "annee": "2024",
+      "type_detecte_pipeline": "scan",
+      "reference_scrapee_manifest": "103DR3/24",
+      "acheteur_scrape_manifest": "MEMEE / ONEEBE - OFFICE NATIONAL DE L'ELECTRICITE ET DE L'EAU POTABLE - BRANCHE EAU",
+      "valeurs_attendues": {
+        "reference_pv": null,
+        "objet": null,
+        "acheteur_public": null,
+        "date_ouverture_plis": null,
+        "date_achevement_commission": null,
+        "concurrent_retenu": null,
+        "montant_offre_retenue": null,
+        "statut": null
+      },
+      "annote_par": null,
+      "date_annotation": null,
+      "notes": null
+    },
+    {
+      "doc_id": "0ebc5731f856c2a847be5d3700cccf21224fe22ded77a7a0d9430f7eaa4723b7",
+      "path": "data/samples/PVs/2025/0ebc5731f856c2a847be5d3700cccf21224fe22ded77a7a0d9430f7eaa4723b7.pdf",
+      "annee": "2025",
+      "type_detecte_pipeline": "native",
+      "reference_scrapee_manifest": "2/2025/ispitsfes",
+      "acheteur_scrape_manifest": "MS / ISPITSF - DIRECTEUR DE L'INSTITUT SUPPERIEURE DES PROFESSIONS INFERMIERES ET TECHNIQUES DE SANTE FES",
+      "valeurs_attendues": {
+        "reference_pv": null,
+        "objet": null,
+        "acheteur_public": null,
+        "date_ouverture_plis": null,
+        "date_achevement_commission": null,
+        "concurrent_retenu": null,
+        "montant_offre_retenue": null,
+        "statut": null
+      },
+      "annote_par": null,
+      "date_annotation": null,
+      "notes": null
+    },
+    {
+      "doc_id": "ec81443a24568c66cd193af99420e7ee22d87dcd245fecb237a558ba28223e6d",
+      "path": "data/samples/PVs/2025/ec81443a24568c66cd193af99420e7ee22d87dcd245fecb237a558ba28223e6d.pdf",
+      "annee": "2025",
+      "type_detecte_pipeline": "native",
+      "reference_scrapee_manifest": "118/2025",
+      "acheteur_scrape_manifest": "FMVPASLF / FMVPASLF - FONDATION MOHAMMED VI POUR LA PROMOTION DES OEUVRES SOCIALES DE L'EDUCATION-FORMATION",
+      "valeurs_attendues": {
+        "reference_pv": null,
+        "objet": null,
+        "acheteur_public": null,
+        "date_ouverture_plis": null,
+        "date_achevement_commission": null,
+        "concurrent_retenu": null,
+        "montant_offre_retenue": null,
+        "statut": null
+      },
+      "annote_par": null,
+      "date_annotation": null,
+      "notes": null
+    },
+    {
+      "doc_id": "aabc53171edcf60b3127362787132b92b54cfac50badfe2e27fddddc3d544228",
+      "path": "data/samples/PVs/2025/aabc53171edcf60b3127362787132b92b54cfac50badfe2e27fddddc3d544228.pdf",
+      "annee": "2025",
+      "type_detecte_pipeline": "scan",
+      "reference_scrapee_manifest": "211/2025/SRMFM",
+      "acheteur_scrape_manifest": "M6 / SRMFM - SOCIETE REGIONALE MULTISERVICES FES - MEKNES S.A",
+      "valeurs_attendues": {
+        "reference_pv": null,
+        "objet": null,
+        "acheteur_public": null,
+        "date_ouverture_plis": null,
+        "date_achevement_commission": null,
+        "concurrent_retenu": null,
+        "montant_offre_retenue": null,
+        "statut": null
+      },
+      "annote_par": null,
+      "date_annotation": null,
+      "notes": null
+    },
+    {
+      "doc_id": "ca886572a39024533b54adcfbd9f7aa61297ff3f56b90fb9e8ac7c2a37c9ebff",
+      "path": "data/samples/PVs/2025/ca886572a39024533b54adcfbd9f7aa61297ff3f56b90fb9e8ac7c2a37c9ebff.pdf",
+      "annee": "2025",
+      "type_detecte_pipeline": "scan",
+      "reference_scrapee_manifest": "205/2025/SRMFM",
+      "acheteur_scrape_manifest": "M6 / SRMFM - SOCIETE REGIONALE MULTISERVICES FES - MEKNES S.A",
+      "valeurs_attendues": {
+        "reference_pv": null,
+        "objet": null,
+        "acheteur_public": null,
+        "date_ouverture_plis": null,
+        "date_achevement_commission": null,
+        "concurrent_retenu": null,
+        "montant_offre_retenue": null,
+        "statut": null
+      },
+      "annote_par": null,
+      "date_annotation": null,
+      "notes": null
+    },
+    {
+      "doc_id": "5ed398a32d63fdaf5656ae0ca5a5c71013f54bcc152412cb19a4ce3e308f8155",
+      "path": "data/samples/PVs/2025/5ed398a32d63fdaf5656ae0ca5a5c71013f54bcc152412cb19a4ce3e308f8155.pdf",
+      "annee": "2025",
+      "type_detecte_pipeline": "scan",
+      "reference_scrapee_manifest": "55/2025/C.Ouezzane",
+      "acheteur_scrape_manifest": "RGCBH / CUO - Commune urbaine de OUEZZANE",
+      "valeurs_attendues": {
+        "reference_pv": null,
+        "objet": null,
+        "acheteur_public": null,
+        "date_ouverture_plis": null,
+        "date_achevement_commission": null,
+        "concurrent_retenu": null,
+        "montant_offre_retenue": null,
+        "statut": null
+      },
+      "annote_par": null,
+      "date_annotation": null,
+      "notes": null
+    },
+    {
+      "doc_id": "dd05b1b5b5db5ca84ba6500397f4c482a5dfa3cc3c2276ba7a0d81b704631063",
+      "path": "data/samples/PVs/2026/dd05b1b5b5db5ca84ba6500397f4c482a5dfa3cc3c2276ba7a0d81b704631063.pdf",
+      "annee": "2026",
+      "type_detecte_pipeline": "native",
+      "reference_scrapee_manifest": "134/2026/ADHA",
+      "acheteur_scrape_manifest": "CG / AGHA - AGENCE DE DEVELOPPEMENT DU HAUT ATLAS",
+      "valeurs_attendues": {
+        "reference_pv": null,
+        "objet": null,
+        "acheteur_public": null,
+        "date_ouverture_plis": null,
+        "date_achevement_commission": null,
+        "concurrent_retenu": null,
+        "montant_offre_retenue": null,
+        "statut": null
+      },
+      "annote_par": null,
+      "date_annotation": null,
+      "notes": null
+    },
+    {
+      "doc_id": "48f26629ef2331f0ef94de15edd96ab013fc0c3456bacbd8f9e12b250a5c2d86",
+      "path": "data/samples/PVs/2026/48f26629ef2331f0ef94de15edd96ab013fc0c3456bacbd8f9e12b250a5c2d86.pdf",
+      "annee": "2026",
+      "type_detecte_pipeline": "native",
+      "reference_scrapee_manifest": "19/CS/2026",
+      "acheteur_scrape_manifest": "RRSK / CUS - Commune urbaine de SALE",
+      "valeurs_attendues": {
+        "reference_pv": null,
+        "objet": null,
+        "acheteur_public": null,
+        "date_ouverture_plis": null,
+        "date_achevement_commission": null,
+        "concurrent_retenu": null,
+        "montant_offre_retenue": null,
+        "statut": null
+      },
+      "annote_par": null,
+      "date_annotation": null,
+      "notes": null
+    },
+    {
+      "doc_id": "4eac1e85166e62656cad41af3b28588454fa5b45a7ccb3173e366252b6e0cad2",
+      "path": "data/samples/PVs/2026/4eac1e85166e62656cad41af3b28588454fa5b45a7ccb3173e366252b6e0cad2.pdf",
+      "annee": "2026",
+      "type_detecte_pipeline": "scan",
+      "reference_scrapee_manifest": "15/2026/DPA/1/SMOPFP",
+      "acheteur_scrape_manifest": "M4 / DPDAA - DIRECTEUR PROVINCIAL D'AGRICULTURE AGADIR",
+      "valeurs_attendues": {
+        "reference_pv": null,
+        "objet": null,
+        "acheteur_public": null,
+        "date_ouverture_plis": null,
+        "date_achevement_commission": null,
+        "concurrent_retenu": null,
+        "montant_offre_retenue": null,
+        "statut": null
+      },
+      "annote_par": null,
+      "date_annotation": null,
+      "notes": null
+    },
+    {
+      "doc_id": "03d5069b92a3e44118ec92c588896456ae5ff1c56774103cc37fae95d29f1c39",
+      "path": "data/samples/PVs/2026/03d5069b92a3e44118ec92c588896456ae5ff1c56774103cc37fae95d29f1c39.pdf",
+      "annee": "2026",
+      "type_detecte_pipeline": "scan",
+      "reference_scrapee_manifest": "13/BG/2026",
+      "acheteur_scrape_manifest": "M6 / PFBS - GOUVERNEUR DE LA PROVINCE DE FQUIH BEN SALAH",
+      "valeurs_attendues": {
+        "reference_pv": null,
+        "objet": null,
+        "acheteur_public": null,
+        "date_ouverture_plis": null,
+        "date_achevement_commission": null,
+        "concurrent_retenu": null,
+        "montant_offre_retenue": null,
+        "statut": null
+      },
+      "annote_par": null,
+      "date_annotation": null,
+      "notes": null
+    },
+    {
+      "doc_id": "551178cf065fc3f6ef257e3fb828cd1c94bcb99f69eb83d2876ab2dce6c9c7c8",
+      "path": "data/samples/PVs/2026/551178cf065fc3f6ef257e3fb828cd1c94bcb99f69eb83d2876ab2dce6c9c7c8.pdf",
+      "annee": "2026",
+      "type_detecte_pipeline": "scan",
+      "reference_scrapee_manifest": "39/SMIT/2026",
+      "acheteur_scrape_manifest": "MTA / SMIT - SOCIETE MAROCAINE D'INGENIERIE TOURISTIQUE",
+      "valeurs_attendues": {
+        "reference_pv": null,
+        "objet": null,
+        "acheteur_public": null,
+        "date_ouverture_plis": null,
+        "date_achevement_commission": null,
+        "concurrent_retenu": null,
+        "montant_offre_retenue": null,
+        "statut": null
+      },
+      "annote_par": null,
+      "date_annotation": null,
+      "notes": null
+    }
+  ]
+}

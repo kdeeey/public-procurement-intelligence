@@ -137,6 +137,17 @@ Ne pas modéliser comme un simple booléen "gagné/perdu" — au moins 3 statuts
 - **Un document peut couvrir plusieurs marchés/lots à la fois** (ex: bulletins consolidés de la SRM-RSK, résultats CRRAR multi-lots) — ne pas supposer "1 PDF = 1 marché".
 - Le gagnant n'est **pas toujours le moins-disant** — critère de sélection variable (mieux-disant technique+financier possible), toujours lire `concurrent_retenu` explicitement.
 
+### 3.5 Documents exclus du pipeline OCR — `Award` non exploitable
+
+Deux documents du corpus (sur 390) sont exclus de l'extraction OCR (`scripts/run_ocr.py`, `EXCLUDED_STEMS` — voir `methodology.md` §1.2/§1.5 pour le diagnostic complet). Leur `Procurement` (via la Passe A du spider Consultations, jointe par `refConsultation`) reste normalement collectée et exploitable ; seul l'`Award` qui en dériverait est concerné :
+
+| `doc_id` (hash) | Raison | Conséquence sur `Award` |
+|---|---|---|
+| `65597f99...cf78` | Faux positif de rotation OSD confirmé — la page 2 (celle qui porte `concurrent_retenu`/`montant_offre_retenue`) reste illisible après une rotation 180° appliquée à tort sur une page déjà correcte | `Award` **non exploitable** pour cette référence — la page 1 (en-tête) est lisible mais ne contient pas les champs d'attribution |
+| `9d2a5e07...1e1` | Page OCR réellement blanche (confirmé : luminosité 254,96/255) | `Award` **non exploitable** — mais la `Procurement` associée reste disponible via la page 1, en texte natif |
+
+**Conséquence pour l'extraction (Issue 7) et les agrégations (Issue 9/10)** : ces deux `reference` auront une `Procurement` mais aucun `Award` dérivable du PV correspondant. Ne pas traiter une jointure `Procurement`↔`Award` manquante comme une erreur de pipeline pour ces deux cas précis — c'est un état de données attendu et documenté, pas un bug de jointure.
+
 ---
 
 ## 4. Entité `Document`
