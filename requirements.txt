@@ -9,7 +9,7 @@ pillow
 
 # OCR
 pytesseract
-opencv-python-headless
+opencv-python
 
 # NLP
 spacy
