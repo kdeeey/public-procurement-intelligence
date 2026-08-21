@@ -18,6 +18,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 import time
 from collections import Counter
@@ -30,9 +31,10 @@ from dotenv import load_dotenv  # noqa: E402
 
 load_dotenv(REPO / ".env")
 
-from ocr.pipeline import process_pdf_safe  # noqa: E402
+from ocr.pipeline import DocumentOcrResult, process_pdf_safe  # noqa: E402
 
 DEFAULT_DIRS = [REPO / "data/samples/PV", REPO / "data/samples/resultats"]
+DEFAULT_OUT_DIR = REPO / "data/processed/ocr"
 
 # Excluded from every OCR run, by filename stem — the files themselves and
 # their manifest entry stay in place (corpus counts documented elsewhere:
@@ -54,12 +56,47 @@ TABLE_KEYWORDS = ("classement", "concurrent 1", "concurrent 2", "montant par",
                   "liste des concurrents")
 
 
+def save_text(result: DocumentOcrResult, out_dir: Path) -> None:
+    """Persist raw OCR text + per-page metadata to data/processed/ocr/, so
+    Issue 6 (text cleaning) has a file to work from instead of re-running OCR
+    or digging through a scratchpad log."""
+    stem = Path(result.pdf_path).stem
+    (out_dir / f"{stem}.txt").write_text(result.text, encoding="utf-8")
+    meta = {
+        "pdf_path": result.pdf_path,
+        "ocr_status": result.ocr_status,
+        "mean_confidence": result.mean_confidence,
+        "pages": [
+            {
+                "page_number": p.page_number,
+                "source": p.source,
+                "confidence": p.confidence,
+                "skew_angle_deg": p.skew_angle_deg,
+                "deskewed": p.deskewed,
+                "orientation_rotate_deg": p.orientation_rotate_deg,
+                "orientation_confidence": p.orientation_confidence,
+                "error": p.error,
+            }
+            for p in result.pages
+        ],
+    }
+    (out_dir / f"{stem}.json").write_text(
+        json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--dir", type=Path, action="append", default=None,
                     help="directory of PDFs to process; repeatable. Default: data/samples/")
     ap.add_argument("--limit", type=int, default=0, help="0 = no limit")
+    ap.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR,
+                    help="where to persist OCR text + metadata; default data/processed/ocr/")
+    ap.add_argument("--no-save", action="store_true",
+                    help="skip persisting text (console report only)")
     args = ap.parse_args()
+
+    if not args.no_save:
+        args.out_dir.mkdir(parents=True, exist_ok=True)
 
     dirs = args.dir or DEFAULT_DIRS
     all_files = sorted(f for d in dirs for f in Path(d).glob("*.pdf"))
@@ -85,6 +122,8 @@ def main() -> int:
         t0 = time.time()
         result = process_pdf_safe(f)
         dt = time.time() - t0
+        if not args.no_save:
+            save_text(result, args.out_dir)
         status_counts[result.ocr_status] += 1
         conf = f"{result.mean_confidence:.1f}" if result.mean_confidence is not None else "-"
         print(f"{result.ocr_status:<20}{conf:>7}{len(result.pages):>7}  {dt:5.1f}s  {f.name[:48]}")
