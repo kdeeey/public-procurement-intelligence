@@ -1,0 +1,17 @@
+{
+  "pdf_path": "data\\samples\\PVs\\2025\\445111f7fb9eaa5c3be0426eaffb9b03f06da4d9bc1652a9fd294d98154f5a0b.pdf",
+  "ocr_status": "ocr_success",
+  "mean_confidence": 88.72262773722628,
+  "pages": [
+    {
+      "page_number": 1,
+      "source": "ocr",
+      "confidence": 88.72262773722628,
+      "skew_angle_deg": 0.0,
+      "deskewed": false,
+      "orientation_rotate_deg": 0,
+      "orientation_confidence": 14.87,
+      "error": null
+    }
+  ]
+}

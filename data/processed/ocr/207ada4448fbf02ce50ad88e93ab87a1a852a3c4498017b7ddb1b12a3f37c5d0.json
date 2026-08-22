@@ -1,0 +1,137 @@
+{
+  "pdf_path": "data\\samples\\PVs\\2023\\207ada4448fbf02ce50ad88e93ab87a1a852a3c4498017b7ddb1b12a3f37c5d0.pdf",
+  "ocr_status": "native",
+  "mean_confidence": null,
+  "pages": [
+    {
+      "page_number": 1,
+      "source": "native",
+      "confidence": null,
+      "skew_angle_deg": null,
+      "deskewed": false,
+      "orientation_rotate_deg": 0,
+      "orientation_confidence": null,
+      "error": null
+    },
+    {
+      "page_number": 2,
+      "source": "native",
+      "confidence": null,
+      "skew_angle_deg": null,
+      "deskewed": false,
+      "orientation_rotate_deg": 0,
+      "orientation_confidence": null,
+      "error": null
+    },
+    {
+      "page_number": 3,
+      "source": "native",
+      "confidence": null,
+      "skew_angle_deg": null,
+      "deskewed": false,
+      "orientation_rotate_deg": 0,
+      "orientation_confidence": null,
+      "error": null
+    },
+    {
+      "page_number": 4,
+      "source": "native",
+      "confidence": null,
+      "skew_angle_deg": null,
+      "deskewed": false,
+      "orientation_rotate_deg": 0,
+      "orientation_confidence": null,
+      "error": null
+    },
+    {
+      "page_number": 5,
+      "source": "native",
+      "confidence": null,
+      "skew_angle_deg": null,
+      "deskewed": false,
+      "orientation_rotate_deg": 0,
+      "orientation_confidence": null,
+      "error": null
+    },
+    {
+      "page_number": 6,
+      "source": "native",
+      "confidence": null,
+      "skew_angle_deg": null,
+      "deskewed": false,
+      "orientation_rotate_deg": 0,
+      "orientation_confidence": null,
+      "error": null
+    },
+    {
+      "page_number": 7,
+      "source": "native",
+      "confidence": null,
+      "skew_angle_deg": null,
+      "deskewed": false,
+      "orientation_rotate_deg": 0,
+      "orientation_confidence": null,
+      "error": null
+    },
+    {
+      "page_number": 8,
+      "source": "native",
+      "confidence": null,
+      "skew_angle_deg": null,
+      "deskewed": false,
+      "orientation_rotate_deg": 0,
+      "orientation_confidence": null,
+      "error": null
+    },
+    {
+      "page_number": 9,
+      "source": "native",
+      "confidence": null,
+      "skew_angle_deg": null,
+      "deskewed": false,
+      "orientation_rotate_deg": 0,
+      "orientation_confidence": null,
+      "error": null
+    },
+    {
+      "page_number": 10,
+      "source": "native",
+      "confidence": null,
+      "skew_angle_deg": null,
+      "deskewed": false,
+      "orientation_rotate_deg": 0,
+      "orientation_confidence": null,
+      "error": null
+    },
+    {
+      "page_number": 11,
+      "source": "native",
+      "confidence": null,
+      "skew_angle_deg": null,
+      "deskewed": false,
+      "orientation_rotate_deg": 0,
+      "orientation_confidence": null,
+      "error": null
+    },
+    {
+      "page_number": 12,
+      "source": "native",
+      "confidence": null,
+      "skew_angle_deg": null,
+      "deskewed": false,
+      "orientation_rotate_deg": 0,
+      "orientation_confidence": null,
+      "error": null
+    },
+    {
+      "page_number": 13,
+      "source": "native",
+      "confidence": null,
+      "skew_angle_deg": null,
+      "deskewed": false,
+      "orientation_rotate_deg": 0,
+      "orientation_confidence": null,
+      "error": null
+    }
+  ]
+}

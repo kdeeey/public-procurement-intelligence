@@ -1,0 +1,17 @@
+{
+  "pdf_path": "data\\samples\\PVs\\2023\\9d729ccb58be4a13e6760809fe423b8259174e7f7d3a7abd9f9652566c493db1.pdf",
+  "ocr_status": "native",
+  "mean_confidence": null,
+  "pages": [
+    {
+      "page_number": 1,
+      "source": "native",
+      "confidence": null,
+      "skew_angle_deg": null,
+      "deskewed": false,
+      "orientation_rotate_deg": 0,
+      "orientation_confidence": null,
+      "error": null
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "pdf_path": "data\\samples\\PVs\\2024\\209604ca8ccce4094f0ed2bbbad135e93a57323a93cc1f89cf4ef975dc71c59d.pdf",
+  "ocr_status": "ocr_success",
+  "mean_confidence": 89.02159244264507,
+  "pages": [
+    {
+      "page_number": 1,
+      "source": "ocr",
+      "confidence": 88.35087719298245,
+      "skew_angle_deg": 0.0,
+      "deskewed": false,
+      "orientation_rotate_deg": 0,
+      "orientation_confidence": 14.47,
+      "error": null
+    },
+    {
+      "page_number": 2,
+      "source": "ocr",
+      "confidence": 89.6923076923077,
+      "skew_angle_deg": 0.0,
+      "deskewed": false,
+      "orientation_rotate_deg": 0,
+      "orientation_confidence": 7.69,
+      "error": null
+    }
+  ]
+}

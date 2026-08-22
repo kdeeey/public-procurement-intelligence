@@ -10,7 +10,15 @@ venv/
 
 # Data (généré/scrapé — pas versionné, trop volumineux et régénérable)
 data/raw/
-data/processed/
+# Sorties intermediaires exclues par defaut -- on exclut le CONTENU de
+# data/processed/ (avec /*) et non le dossier lui-meme, car git ne peut
+# pas re-inclure un fichier dont un dossier parent est exclu.
+data/processed/*
+# Exception : le texte OCR est volontairement versionne. C'est l'entree
+# des Issues 6 et 7, il represente ~2h de calcul, et il ne pese que
+# 1,6 Mo reels (les 97 Mo vus dans l'explorateur sont de l'espace disque
+# alloue, pas du contenu : NTFS arrondit chaque petit fichier).
+!data/processed/ocr/
 
 # data/samples/ et data/synthetic/ restent versionnés (petits, curés à la main)
 # EXCEPTION : le corpus des 400 extraits de PV (343 Mo) est scrapé et régénérable
@@ -35,3 +43,10 @@ Thumbs.db
 
 # Jupyter
 .ipynb_checkpoints/
+
+# Documents de travail personnels, non versionnés
+docs/comprendre.md
+docs/onboarding.md
+
+# Dossier de travail pour annotation manuelle (copies regenerables, ~16 Mo)
+data/annotation/

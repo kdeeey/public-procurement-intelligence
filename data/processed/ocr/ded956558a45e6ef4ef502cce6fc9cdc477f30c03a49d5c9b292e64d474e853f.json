@@ -1,0 +1,17 @@
+{
+  "pdf_path": "data\\samples\\PVs\\2023\\ded956558a45e6ef4ef502cce6fc9cdc477f30c03a49d5c9b292e64d474e853f.pdf",
+  "ocr_status": "ocr_success",
+  "mean_confidence": 84.71487603305785,
+  "pages": [
+    {
+      "page_number": 1,
+      "source": "ocr",
+      "confidence": 84.71487603305785,
+      "skew_angle_deg": 0.0,
+      "deskewed": false,
+      "orientation_rotate_deg": 0,
+      "orientation_confidence": 8.1,
+      "error": null
+    }
+  ]
+}

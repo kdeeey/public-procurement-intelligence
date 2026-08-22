@@ -6,7 +6,7 @@
     "65597f99d131db2a59fabcab9bb39929f9f1f9f1ff518a1ef60e0ccdb0bfcf78",
     "9d2a5e0783702e0198d5bdfe23c3212d72fa6501308724cbb85bf03d2b6d01e1"
   ],
-  "statut": "SQUELETTE NON ANNOTE -- valeurs_attendues a completer manuellement avant utilisation par Issue 6/7",
+  "statut": "ANNOTE — 20/20 documents renseignes le 2026-08-22",
   "documents": [
     {
       "doc_id": "9140a66ac4fd6a9bcdfc57bfbb2a23efecf033658f948925aeabfc1b75a679f0",
@@ -16,18 +16,18 @@
       "reference_scrapee_manifest": "08/2023/CRIDOE",
       "acheteur_scrape_manifest": null,
       "valeurs_attendues": {
-        "reference_pv": null,
-        "objet": null,
-        "acheteur_public": null,
-        "date_ouverture_plis": null,
+        "reference_pv": "08/2023/CRIDOE",
+        "objet": "La réalisation des prestations d'intérim au profit du Centre régional d'investissement Dakhla Oued Eddahab.",
+        "acheteur_public": "Centre Régional d'Investissement de la Région Dakhla Oued-Eddahab",
+        "date_ouverture_plis": "28/12/2023",
         "date_achevement_commission": null,
-        "concurrent_retenu": null,
-        "montant_offre_retenue": null,
-        "statut": null
+        "concurrent_retenu": "TECTRA",
+        "montant_offre_retenue": 721224.86,
+        "statut": "ATTRIBUE"
       },
-      "annote_par": null,
-      "date_annotation": null,
-      "notes": null
+      "annote_par": "annotation manuelle assistee (lecture des PDF source)",
+      "date_annotation": "2026-08-22",
+      "notes": "Pas de champ distinct \"date d'achèvement des travaux de la commission\" dans ce document ; seule une date de signature (28/12/2023, identique à l'ouverture) figure en bas de page."
     },
     {
       "doc_id": "672bb02cd03c9b88c60de6291bc7b2a6d88bf097a42d05415435bd88dfd1171e",
@@ -37,18 +37,18 @@
       "reference_scrapee_manifest": "126/E/23",
       "acheteur_scrape_manifest": null,
       "valeurs_attendues": {
-        "reference_pv": null,
-        "objet": null,
-        "acheteur_public": null,
-        "date_ouverture_plis": null,
-        "date_achevement_commission": null,
-        "concurrent_retenu": null,
-        "montant_offre_retenue": null,
-        "statut": null
+        "reference_pv": "126/E/23",
+        "objet": "Fourniture de débitmètre ultrason portable, enregistreur de pression et matériel de détection de fuite.",
+        "acheteur_public": "RADEET",
+        "date_ouverture_plis": "19/12/2023",
+        "date_achevement_commission": "26/12/2023",
+        "concurrent_retenu": "Société MAIRAV",
+        "montant_offre_retenue": 574560.0,
+        "statut": "ATTRIBUE"
       },
-      "annote_par": null,
-      "date_annotation": null,
-      "notes": null
+      "annote_par": "annotation manuelle assistee (lecture des PDF source)",
+      "date_annotation": "2026-08-22",
+      "notes": "Incohérence dans le document : l'en-tête indique le n° \"124/E/23\" alors que le pied de page (et le nom du fichier) indiquent \"126/E/23\" - c'est cette dernière référence qui a été retenue."
     },
     {
       "doc_id": "3a6a7d163182f13b6bd9ba3396c00d9539ac420b1f90b5008498120aaa859767",
@@ -58,18 +58,18 @@
       "reference_scrapee_manifest": "117/2023/ADERFES",
       "acheteur_scrape_manifest": null,
       "valeurs_attendues": {
-        "reference_pv": null,
-        "objet": null,
-        "acheteur_public": null,
-        "date_ouverture_plis": null,
-        "date_achevement_commission": null,
-        "concurrent_retenu": null,
-        "montant_offre_retenue": null,
-        "statut": null
+        "reference_pv": "117/2023",
+        "objet": "Travaux de construction d'une école de cuisine au sein de la médina de Fès - ville de Fès, en lot unique.",
+        "acheteur_public": "ADER-Fès (maître d'ouvrage délégué)",
+        "date_ouverture_plis": "19/12/2023",
+        "date_achevement_commission": "29/12/2023",
+        "concurrent_retenu": "Société RACHAD ISTITMAR SARL",
+        "montant_offre_retenue": 4158240.0,
+        "statut": "ATTRIBUE"
       },
-      "annote_par": null,
-      "date_annotation": null,
-      "notes": null
+      "annote_par": "annotation manuelle assistee (lecture des PDF source)",
+      "date_annotation": "2026-08-22",
+      "notes": "Un seul concurrent, admissible avec réserve (pas sans réserve)."
     },
     {
       "doc_id": "f2b79a276ec5fb98c2481b9bd49c7f7552344fde9f14683efa8afb40ceef104a",
@@ -79,18 +79,18 @@
       "reference_scrapee_manifest": "2/AS/2023",
       "acheteur_scrape_manifest": null,
       "valeurs_attendues": {
-        "reference_pv": null,
-        "objet": null,
-        "acheteur_public": null,
-        "date_ouverture_plis": null,
-        "date_achevement_commission": null,
+        "reference_pv": "2/AS/2023",
+        "objet": "Location de véhicules.",
+        "acheteur_public": "Président de l'Arrondissement SBATA (Commune de Casablanca)",
+        "date_ouverture_plis": "26/09/2023",
+        "date_achevement_commission": "24/11/2022",
         "concurrent_retenu": null,
         "montant_offre_retenue": null,
-        "statut": null
+        "statut": "INFRUCTUEUX"
       },
-      "annote_par": null,
-      "date_annotation": null,
-      "notes": null
+      "annote_par": "annotation manuelle assistee (lecture des PDF source)",
+      "date_annotation": "2026-08-22",
+      "notes": "Un seul concurrent (Société Marloc) mais le champ concurrent retenu affiche \"NENAT\" (coquille pour \"NEANT\" dans le document) et la décision indique explicitement \"Appel d'offres infructueux\". Incohérence de dates dans le PV original : ouverture des plis le 26/09/2023, mais \"date d'achèvement des travaux de la commission\" indiquée 24/11/2022 et \"Fait à Casablanca\" daté du 26/09/2022 - décalage d'un an, vraisemblablement une erreur de saisie (millésime précédent non corrigé) dans le document source."
     },
     {
       "doc_id": "ea9b61ee0d2b2d958e052c7117f6a2307091026f19efdb6d256cf191149c8a11",
@@ -100,17 +100,17 @@
       "reference_scrapee_manifest": "A144/RRA/2023",
       "acheteur_scrape_manifest": null,
       "valeurs_attendues": {
-        "reference_pv": null,
-        "objet": null,
-        "acheteur_public": null,
-        "date_ouverture_plis": null,
-        "date_achevement_commission": null,
-        "concurrent_retenu": null,
-        "montant_offre_retenue": null,
-        "statut": null
+        "reference_pv": "A144/RRA/2023",
+        "objet": "Etudes techniques, contrôle général et suivi techniques des travaux de construction des équipements de la santé dans la préfecture de Skhirat Témara - Tranche 1.",
+        "acheteur_public": "Société Rabat Région Aménagement (SRA)",
+        "date_ouverture_plis": "29/11/2023",
+        "date_achevement_commission": "26/12/2023",
+        "concurrent_retenu": "BET SG CONCEPT",
+        "montant_offre_retenue": 708000.0,
+        "statut": "ATTRIBUE"
       },
-      "annote_par": null,
-      "date_annotation": null,
+      "annote_par": "annotation manuelle assistee (lecture des PDF source)",
+      "date_annotation": "2026-08-22",
       "notes": null
     },
     {
@@ -121,18 +121,18 @@
       "reference_scrapee_manifest": "56/2024",
       "acheteur_scrape_manifest": "MICIEN / PM - POSTE MAROC",
       "valeurs_attendues": {
-        "reference_pv": null,
-        "objet": null,
-        "acheteur_public": null,
-        "date_ouverture_plis": null,
-        "date_achevement_commission": null,
-        "concurrent_retenu": null,
-        "montant_offre_retenue": null,
-        "statut": null
+        "reference_pv": "56/2024",
+        "objet": "L'acquisition, la mise en place et la maintenance d'une solution de gestion des identités et des accès (marché à tranche conditionnelle).",
+        "acheteur_public": "Barid Al Maghrib S.A.",
+        "date_ouverture_plis": "27/12/2024",
+        "date_achevement_commission": "31/12/2024",
+        "concurrent_retenu": "IMS TECHNOLOGY",
+        "montant_offre_retenue": 2196000.0,
+        "statut": "ATTRIBUE"
       },
-      "annote_par": null,
-      "date_annotation": null,
-      "notes": null
+      "annote_par": "annotation manuelle assistee (lecture des PDF source)",
+      "date_annotation": "2026-08-22",
+      "notes": "Marché à tranche conditionnelle : montant retenu = tranche ferme (TF) 2 196 000,00 DH/HT. Il existe en plus une tranche conditionnelle (TC/AN) de 594 500,00 DH/HT non incluse dans ce chiffre."
     },
     {
       "doc_id": "3d46704d054de5280514c3526cb9cc2b479d99b9e4bf42fef58ad7cd545278dd",
@@ -142,18 +142,18 @@
       "reference_scrapee_manifest": "38/2024",
       "acheteur_scrape_manifest": "RSMD / CUDE - Commune urbaine de DCHEIRA ELJIHADIA",
       "valeurs_attendues": {
-        "reference_pv": null,
-        "objet": null,
-        "acheteur_public": null,
-        "date_ouverture_plis": null,
-        "date_achevement_commission": null,
-        "concurrent_retenu": null,
-        "montant_offre_retenue": null,
-        "statut": null
+        "reference_pv": "38/2024",
+        "objet": "Contrôle des études techniques et suivi des travaux de construction d'une salle de sport à la Commune Dcheira El Jihadia, préfecture d'Inzgane Aït Melloul (appel d'offres ouvert national).",
+        "acheteur_public": "Commune Dcheira El Jihadia",
+        "date_ouverture_plis": "17/12/2024",
+        "date_achevement_commission": "26/12/2024",
+        "concurrent_retenu": "Sté RISK CONTROL",
+        "montant_offre_retenue": 61632.0,
+        "statut": "ATTRIBUE"
       },
-      "annote_par": null,
-      "date_annotation": null,
-      "notes": null
+      "annote_par": "annotation manuelle assistee (lecture des PDF source)",
+      "date_annotation": "2026-08-22",
+      "notes": "Document \"NATIF\" mais couche de texte du PDF totalement corrompue à l'extraction automatique (police mal encodée, mojibake) - lecture uniquement possible via l'image des pages. Processus en 3 séances : 1ère séance 17/12/2024 (ouverture des plis, retenue ici), 2e séance 20/12/2024, 3e séance (attribution) 26/12/2024."
     },
     {
       "doc_id": "1046ec535626a6bad1518886ca68b50bf2a83aef73372f10e1313872cc6c44a9",
@@ -163,18 +163,18 @@
       "reference_scrapee_manifest": "19/2024",
       "acheteur_scrape_manifest": null,
       "valeurs_attendues": {
-        "reference_pv": null,
-        "objet": null,
-        "acheteur_public": null,
-        "date_ouverture_plis": null,
-        "date_achevement_commission": null,
+        "reference_pv": "19/2024",
+        "objet": "Achat de voiture pick-up 4*4 double cabine au profit de la Commune d'Es-Semara.",
+        "acheteur_public": "Commune d'Es-Semara",
+        "date_ouverture_plis": "12/12/2024",
+        "date_achevement_commission": "12/12/2024",
         "concurrent_retenu": null,
         "montant_offre_retenue": null,
-        "statut": null
+        "statut": "INFRUCTUEUX"
       },
-      "annote_par": null,
-      "date_annotation": null,
-      "notes": null
+      "annote_par": "annotation manuelle assistee (lecture des PDF source)",
+      "date_annotation": "2026-08-22",
+      "notes": "Aucun concurrent ne s'est présenté (NEANT) ; appel d'offres déclaré infructueux (art. 45 du décret n°2-22-431)."
     },
     {
       "doc_id": "349e44bf07053ca6de523ea1d199215a081274d40722ca5ee361dcfa6d08a9f6",
@@ -184,18 +184,18 @@
       "reference_scrapee_manifest": "31/2024/CHUSM",
       "acheteur_scrape_manifest": "MS / CHUSM - CENTRE HOSPITALO-UNIVERSITAIRE MOHAMMED VI - AGADIR",
       "valeurs_attendues": {
-        "reference_pv": null,
-        "objet": null,
-        "acheteur_public": null,
-        "date_ouverture_plis": null,
-        "date_achevement_commission": null,
-        "concurrent_retenu": null,
-        "montant_offre_retenue": null,
-        "statut": null
+        "reference_pv": "31/2024/CHUSM",
+        "objet": "Fourniture et installation du rayonnage, matériels de manutention, et équipements de stockage Centre Hospitalo-Universitaire Souss Massa (3 lots).",
+        "acheteur_public": "Centre Hospitalo-Universitaire de Souss-Massa",
+        "date_ouverture_plis": "20/11/2024",
+        "date_achevement_commission": "31/12/2024",
+        "concurrent_retenu": "LINK RAYONNAGE MAROC",
+        "montant_offre_retenue": 420246.0,
+        "statut": "ATTRIBUE"
       },
-      "annote_par": null,
-      "date_annotation": null,
-      "notes": null
+      "annote_par": "annotation manuelle assistee (lecture des PDF source)",
+      "date_annotation": "2026-08-22",
+      "notes": "Document multi-lots (3 lots). Seul le lot 1 est attribué (à LINK RAYONNAGE MAROC, retenu ici) ; les lots 2 et 3 sont déclarés infructueux."
     },
     {
       "doc_id": "2a36f6540d9177747368464ad02226075d3fd40c86a98efdb0d265304df29034",
@@ -205,17 +205,17 @@
       "reference_scrapee_manifest": "103DR3/24",
       "acheteur_scrape_manifest": "MEMEE / ONEEBE - OFFICE NATIONAL DE L'ELECTRICITE ET DE L'EAU POTABLE - BRANCHE EAU",
       "valeurs_attendues": {
-        "reference_pv": null,
-        "objet": null,
-        "acheteur_public": null,
-        "date_ouverture_plis": null,
-        "date_achevement_commission": null,
-        "concurrent_retenu": null,
-        "montant_offre_retenue": null,
-        "statut": null
+        "reference_pv": "103/DR3/2024",
+        "objet": "Achat stockés matériels d'eau pour les centres relevant de l'AS3/4 (Direction Provinciale Khénifra).",
+        "acheteur_public": "Office National de l'Electricité et de l'Eau Potable - Direction Régionale du Centre (DR3)",
+        "date_ouverture_plis": "03/12/2024",
+        "date_achevement_commission": "31/12/2024",
+        "concurrent_retenu": "OMNIUM HYDROLIQUE ET ELECTRIQUE",
+        "montant_offre_retenue": 179400.0,
+        "statut": "ATTRIBUE"
       },
-      "annote_par": null,
-      "date_annotation": null,
+      "annote_par": "annotation manuelle assistee (lecture des PDF source)",
+      "date_annotation": "2026-08-22",
       "notes": null
     },
     {
@@ -226,18 +226,18 @@
       "reference_scrapee_manifest": "2/2025/ispitsfes",
       "acheteur_scrape_manifest": "MS / ISPITSF - DIRECTEUR DE L'INSTITUT SUPPERIEURE DES PROFESSIONS INFERMIERES ET TECHNIQUES DE SANTE FES",
       "valeurs_attendues": {
-        "reference_pv": null,
-        "objet": null,
-        "acheteur_public": null,
-        "date_ouverture_plis": null,
-        "date_achevement_commission": null,
-        "concurrent_retenu": null,
-        "montant_offre_retenue": null,
-        "statut": null
+        "reference_pv": "02/2025/ISPITS/FES",
+        "objet": "L'Achat de Matériels Didactiques et Audio-visuel au profit de l'institut supérieur des professions infirmières et techniques de santé de Fès et instituts annexes Meknès et Taza en LOT UNIQUE.",
+        "acheteur_public": "Institut Supérieur des Professions Infirmières et Techniques de Santé de Fès (représenté par Dr. Yaagoubi Mustapha)",
+        "date_ouverture_plis": "20/11/2025",
+        "date_achevement_commission": "12/12/2025",
+        "concurrent_retenu": "STE DAKHCHI",
+        "montant_offre_retenue": 3322992.0,
+        "statut": "ATTRIBUE"
       },
-      "annote_par": null,
-      "date_annotation": null,
-      "notes": null
+      "annote_par": "annotation manuelle assistee (lecture des PDF source)",
+      "date_annotation": "2026-08-22",
+      "notes": "Document \"NATIF\" mais couche de texte du PDF corrompue à l'extraction automatique (police mal encodée) : la date d'ouverture (20/11/2025) n'était pas fiable sans consulter l'image de la page. A signaler comme cas où le pipeline texte peut se tromper même sur un PDF natif."
     },
     {
       "doc_id": "ec81443a24568c66cd193af99420e7ee22d87dcd245fecb237a558ba28223e6d",
@@ -247,18 +247,18 @@
       "reference_scrapee_manifest": "118/2025",
       "acheteur_scrape_manifest": "FMVPASLF / FMVPASLF - FONDATION MOHAMMED VI POUR LA PROMOTION DES OEUVRES SOCIALES DE L'EDUCATION-FORMATION",
       "valeurs_attendues": {
-        "reference_pv": null,
-        "objet": null,
-        "acheteur_public": null,
-        "date_ouverture_plis": null,
-        "date_achevement_commission": null,
-        "concurrent_retenu": null,
-        "montant_offre_retenue": null,
-        "statut": null
+        "reference_pv": "118/2025",
+        "objet": "Travaux d'aménagement et d'extension de l'école préscolaire de la Fondation à Mohammedia.",
+        "acheteur_public": "Fondation Mohammed VI de Promotion des Œuvres Sociales de l'Education-Formation",
+        "date_ouverture_plis": "09/12/2025",
+        "date_achevement_commission": "30/12/2025",
+        "concurrent_retenu": "TANSIFT CONTRACTOR",
+        "montant_offre_retenue": 922770.0,
+        "statut": "ATTRIBUE"
       },
-      "annote_par": null,
-      "date_annotation": null,
-      "notes": null
+      "annote_par": "annotation manuelle assistee (lecture des PDF source)",
+      "date_annotation": "2026-08-22",
+      "notes": "Montant en HT (le document précise \"Actes d'engagement HT\" ; aucun montant TTC n'est indiqué). Le PDF contient deux extraits pour le même AO (un \"résultat définitif\" et un \"extrait du PV\") avec un léger écart de libellé de l'objet entre les deux (\"aménagement\" seul vs \"aménagement et extension\")."
     },
     {
       "doc_id": "aabc53171edcf60b3127362787132b92b54cfac50badfe2e27fddddc3d544228",
@@ -268,18 +268,18 @@
       "reference_scrapee_manifest": "211/2025/SRMFM",
       "acheteur_scrape_manifest": "M6 / SRMFM - SOCIETE REGIONALE MULTISERVICES FES - MEKNES S.A",
       "valeurs_attendues": {
-        "reference_pv": null,
-        "objet": null,
-        "acheteur_public": null,
-        "date_ouverture_plis": null,
-        "date_achevement_commission": null,
-        "concurrent_retenu": null,
-        "montant_offre_retenue": null,
-        "statut": null
+        "reference_pv": "211/2025",
+        "objet": "Travaux de génie civil, fourniture et équipement des postes HTA/BT dans le périmètre de la préfecture de Meknès.",
+        "acheteur_public": "Société Régionale Multiservices Fès-Meknès « SRM-FM »",
+        "date_ouverture_plis": "20/11/2025",
+        "date_achevement_commission": "24/12/2025",
+        "concurrent_retenu": "SIWERGY MAROC",
+        "montant_offre_retenue": 9269719.8,
+        "statut": "ATTRIBUE"
       },
-      "annote_par": null,
-      "date_annotation": null,
-      "notes": null
+      "annote_par": "annotation manuelle assistee (lecture des PDF source)",
+      "date_annotation": "2026-08-22",
+      "notes": "Montant retenu = TTC (9 269 719,80 DH) ; montant HT correspondant = 7 724 766,50 DH."
     },
     {
       "doc_id": "ca886572a39024533b54adcfbd9f7aa61297ff3f56b90fb9e8ac7c2a37c9ebff",
@@ -289,18 +289,18 @@
       "reference_scrapee_manifest": "205/2025/SRMFM",
       "acheteur_scrape_manifest": "M6 / SRMFM - SOCIETE REGIONALE MULTISERVICES FES - MEKNES S.A",
       "valeurs_attendues": {
-        "reference_pv": null,
-        "objet": null,
-        "acheteur_public": null,
-        "date_ouverture_plis": null,
-        "date_achevement_commission": null,
-        "concurrent_retenu": null,
-        "montant_offre_retenue": null,
-        "statut": null
+        "reference_pv": "205/2025",
+        "objet": "Electrification des lotissements, des hors sites et extension des réseaux MT et BT dans la préfecture de Meknès.",
+        "acheteur_public": "Société Régionale Multiservices Fès-Meknès « SRM-FM »",
+        "date_ouverture_plis": "20/11/2025",
+        "date_achevement_commission": "24/12/2025",
+        "concurrent_retenu": "LUCERNA TRAVAUX",
+        "montant_offre_retenue": 4910112.0,
+        "statut": "ATTRIBUE"
       },
-      "annote_par": null,
-      "date_annotation": null,
-      "notes": null
+      "annote_par": "annotation manuelle assistee (lecture des PDF source)",
+      "date_annotation": "2026-08-22",
+      "notes": "Montant retenu = TTC (4 910 112,00 DH) ; montant HT correspondant = 4 091 760,00 DH."
     },
     {
       "doc_id": "5ed398a32d63fdaf5656ae0ca5a5c71013f54bcc152412cb19a4ce3e308f8155",
@@ -310,18 +310,18 @@
       "reference_scrapee_manifest": "55/2025/C.Ouezzane",
       "acheteur_scrape_manifest": "RGCBH / CUO - Commune urbaine de OUEZZANE",
       "valeurs_attendues": {
-        "reference_pv": null,
-        "objet": null,
-        "acheteur_public": null,
-        "date_ouverture_plis": null,
-        "date_achevement_commission": null,
-        "concurrent_retenu": null,
-        "montant_offre_retenue": null,
-        "statut": null
+        "reference_pv": "55/2025",
+        "objet": "Acquisition de matériel informatique.",
+        "acheteur_public": "Commune d'Ouezzane",
+        "date_ouverture_plis": "04/12/2025",
+        "date_achevement_commission": "08/12/2025",
+        "concurrent_retenu": "Société RK WORK",
+        "montant_offre_retenue": 105720.0,
+        "statut": "ATTRIBUE"
       },
-      "annote_par": null,
-      "date_annotation": null,
-      "notes": null
+      "annote_par": "annotation manuelle assistee (lecture des PDF source)",
+      "date_annotation": "2026-08-22",
+      "notes": "Appel d'offres ouvert simplifié. Un seul concurrent, admis avec réserve (pas sans réserve)."
     },
     {
       "doc_id": "dd05b1b5b5db5ca84ba6500397f4c482a5dfa3cc3c2276ba7a0d81b704631063",
@@ -331,18 +331,18 @@
       "reference_scrapee_manifest": "134/2026/ADHA",
       "acheteur_scrape_manifest": "CG / AGHA - AGENCE DE DEVELOPPEMENT DU HAUT ATLAS",
       "valeurs_attendues": {
-        "reference_pv": null,
-        "objet": null,
-        "acheteur_public": null,
-        "date_ouverture_plis": null,
-        "date_achevement_commission": null,
-        "concurrent_retenu": null,
-        "montant_offre_retenue": null,
-        "statut": null
+        "reference_pv": "134/2026/ADHA",
+        "objet": "Travaux de reconstruction des établissements scolaires relevant de la province d'Al Haouz - Lot 1 : reconstruction écologique de l'école Moulay Brahim.",
+        "acheteur_public": "Agence de Développement du Haut Atlas (maître d'ouvrage délégué : DPENPS d'Al Haouz)",
+        "date_ouverture_plis": "27/07/2026",
+        "date_achevement_commission": "04/08/2026",
+        "concurrent_retenu": "STE SOUSSTHERME SARL",
+        "montant_offre_retenue": 5091312.0,
+        "statut": "ATTRIBUE"
       },
-      "annote_par": null,
-      "date_annotation": null,
-      "notes": null
+      "annote_par": "annotation manuelle assistee (lecture des PDF source)",
+      "date_annotation": "2026-08-22",
+      "notes": "Document multi-lots (2 lots dans le même PV). Lot 2 (école Outghale) attribué séparément à STE SOKIDAM BTP SARL pour 2 972 904,00 DH TTC - non repris dans ce tableau (voir consigne lot 1 uniquement)."
     },
     {
       "doc_id": "48f26629ef2331f0ef94de15edd96ab013fc0c3456bacbd8f9e12b250a5c2d86",
@@ -352,18 +352,18 @@
       "reference_scrapee_manifest": "19/CS/2026",
       "acheteur_scrape_manifest": "RRSK / CUS - Commune urbaine de SALE",
       "valeurs_attendues": {
-        "reference_pv": null,
-        "objet": null,
-        "acheteur_public": null,
-        "date_ouverture_plis": null,
-        "date_achevement_commission": null,
-        "concurrent_retenu": null,
-        "montant_offre_retenue": null,
-        "statut": null
+        "reference_pv": "19/CS/2026",
+        "objet": "Achat de petit matériel de signalisation.",
+        "acheteur_public": "Commune de Salé",
+        "date_ouverture_plis": "13/07/2026",
+        "date_achevement_commission": "15/07/2026",
+        "concurrent_retenu": "La Société BENFORD SARL AU",
+        "montant_offre_retenue": 949092.0,
+        "statut": "ATTRIBUE"
       },
-      "annote_par": null,
-      "date_annotation": null,
-      "notes": null
+      "annote_par": "annotation manuelle assistee (lecture des PDF source)",
+      "date_annotation": "2026-08-22",
+      "notes": "Appel d'offres ouvert simplifié sur offres de prix. 8 concurrents au départ, 1 écarté en phase administrative/technique (ECLANOUR), puis 2 écartés en phase financière (BOUNOUAR SIGNALISATION, NG2E). Point de vigilance : le retenu (BENFORD, 949 092 DHS) n'est pas le moins-disant apparent (URBAN ELECTRONICS, 782 052 DHS, figure dans les admis sans réserve mais n'apparaît dans aucune liste d'écartés ni de retenus du tableau final) - probablement une évaluation qualité/technique non détaillée dans cet extrait, à vérifier si besoin. Document \"NATIF\" mais en réalité une image scannée avec mauvaise reconnaissance de caractères à l'extraction automatique (ex. \"1'iisue\", \"Marché n' 19/CS/2026\") - lecture faite sur l'image des pages."
     },
     {
       "doc_id": "4eac1e85166e62656cad41af3b28588454fa5b45a7ccb3173e366252b6e0cad2",
@@ -373,18 +373,18 @@
       "reference_scrapee_manifest": "15/2026/DPA/1/SMOPFP",
       "acheteur_scrape_manifest": "M4 / DPDAA - DIRECTEUR PROVINCIAL D'AGRICULTURE AGADIR",
       "valeurs_attendues": {
-        "reference_pv": null,
-        "objet": null,
-        "acheteur_public": null,
-        "date_ouverture_plis": null,
-        "date_achevement_commission": null,
-        "concurrent_retenu": null,
-        "montant_offre_retenue": null,
-        "statut": null
+        "reference_pv": "15/2026/DPA/1/SMOPFP",
+        "objet": "Travaux de plantation de 100 ha de cactus dans le cadre du projet de diversification des systèmes de production et inclusion de la femme rurale au niveau de la commune territoriale Adar, cercle d'Ighrem, province de Taroudant, région de Souss Massa.",
+        "acheteur_public": "Directeur Provincial de l'Agriculture d'Agadir",
+        "date_ouverture_plis": "23/07/2026",
+        "date_achevement_commission": "17/08/2026",
+        "concurrent_retenu": "ENTREPRISE OUENZAR",
+        "montant_offre_retenue": 1455960.0,
+        "statut": "ATTRIBUE"
       },
-      "annote_par": null,
-      "date_annotation": null,
-      "notes": null
+      "annote_par": "annotation manuelle assistee (lecture des PDF source)",
+      "date_annotation": "2026-08-22",
+      "notes": "Document de 4 pages, 42 concurrents au départ (liste très longue)."
     },
     {
       "doc_id": "03d5069b92a3e44118ec92c588896456ae5ff1c56774103cc37fae95d29f1c39",
@@ -394,18 +394,18 @@
       "reference_scrapee_manifest": "13/BG/2026",
       "acheteur_scrape_manifest": "M6 / PFBS - GOUVERNEUR DE LA PROVINCE DE FQUIH BEN SALAH",
       "valeurs_attendues": {
-        "reference_pv": null,
-        "objet": null,
-        "acheteur_public": null,
-        "date_ouverture_plis": null,
-        "date_achevement_commission": null,
-        "concurrent_retenu": null,
-        "montant_offre_retenue": null,
-        "statut": null
+        "reference_pv": "13/BG/2026",
+        "objet": "Etudes techniques et suivi des travaux d'aménagement et d'installation à l'annexe du siège de la Province de Fquih Ben Salah.",
+        "acheteur_public": "Province de Fquih Ben Salah (Gouverneur de la Province de Fquih Ben Salah)",
+        "date_ouverture_plis": "21/07/2026",
+        "date_achevement_commission": "07/08/2026",
+        "concurrent_retenu": "GROUPEMENT entre la Société DANY D'ESSAIS ET ETUDES SARL (Tanger) et la Société Solutions Professionnelles Génie Civil S.A.R.L AU (Beni Mellal)",
+        "montant_offre_retenue": 183600.0,
+        "statut": "ATTRIBUE"
       },
-      "annote_par": null,
-      "date_annotation": null,
-      "notes": null
+      "annote_par": "annotation manuelle assistee (lecture des PDF source)",
+      "date_annotation": "2026-08-22",
+      "notes": "Appel d'offres ouvert national. 5 concurrents/groupements au départ, 2 écartés en phase administrative (MDS INGENIERIE, DEBBAGH ABDELHAMID)."
     },
     {
       "doc_id": "551178cf065fc3f6ef257e3fb828cd1c94bcb99f69eb83d2876ab2dce6c9c7c8",
@@ -415,18 +415,19 @@
       "reference_scrapee_manifest": "39/SMIT/2026",
       "acheteur_scrape_manifest": "MTA / SMIT - SOCIETE MAROCAINE D'INGENIERIE TOURISTIQUE",
       "valeurs_attendues": {
-        "reference_pv": null,
-        "objet": null,
-        "acheteur_public": null,
-        "date_ouverture_plis": null,
+        "reference_pv": "39/SMIT/2026",
+        "objet": "La réalisation d'un film promotionnel pour la valorisation du programme de développement touristique du Parc National du Toubkal et la promotion de ses atouts naturels, culturels et écotouristiques.",
+        "acheteur_public": "Société Marocaine d'Ingénierie Touristique (SMIT)",
+        "date_ouverture_plis": "31/07/2026",
         "date_achevement_commission": null,
-        "concurrent_retenu": null,
-        "montant_offre_retenue": null,
-        "statut": null
+        "concurrent_retenu": "SIGMA TECHNOLOGIES",
+        "montant_offre_retenue": 576000.0,
+        "statut": "ATTRIBUE"
       },
-      "annote_par": null,
-      "date_annotation": null,
-      "notes": null
+      "annote_par": "annotation manuelle assistee (lecture des PDF source)",
+      "date_annotation": "2026-08-22",
+      "notes": "Champ \"Date d'achèvement des travaux de la commission\" laissé vide dans le document original lui-même (le libellé est imprimé mais aucune date n'y est inscrite) ; seule une date de signature \"Fait à Rabat, le 18 août 2026\" est visible en bas de page, non reportée ici pour respecter la consigne (champ vide dans le PDF = case vide). Le document précise aussi une date d'ouverture des offres financières distincte : 07/08/2026. Un seul concurrent techniquement admis sur les 2 ayant déposé (SALAM PRO écarté)."
     }
-  ]
+  ],
+  "avertissement_montants": "montant_offre_retenue melange HT et TTC selon ce que le PDF source indique (TTC lignes 6/16, HT lignes 3/15 — voir notes). Normaliser avant toute comparaison numerique."
 }

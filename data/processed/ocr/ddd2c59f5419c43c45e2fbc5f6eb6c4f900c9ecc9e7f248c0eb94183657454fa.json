@@ -1,0 +1,67 @@
+{
+  "pdf_path": "data\\samples\\PVs\\2026\\ddd2c59f5419c43c45e2fbc5f6eb6c4f900c9ecc9e7f248c0eb94183657454fa.pdf",
+  "ocr_status": "ocr_success",
+  "mean_confidence": 84.22312579715644,
+  "pages": [
+    {
+      "page_number": 1,
+      "source": "ocr",
+      "confidence": 85.07894736842105,
+      "skew_angle_deg": 1.2197373454663394,
+      "deskewed": true,
+      "orientation_rotate_deg": 0,
+      "orientation_confidence": 7.0,
+      "error": null
+    },
+    {
+      "page_number": 2,
+      "source": "ocr",
+      "confidence": 84.28362573099415,
+      "skew_angle_deg": 1.4563586343396875,
+      "deskewed": true,
+      "orientation_rotate_deg": 0,
+      "orientation_confidence": 14.25,
+      "error": null
+    },
+    {
+      "page_number": 3,
+      "source": "ocr",
+      "confidence": 85.01433691756273,
+      "skew_angle_deg": 0.29841281999488256,
+      "deskewed": false,
+      "orientation_rotate_deg": 0,
+      "orientation_confidence": 20.38,
+      "error": null
+    },
+    {
+      "page_number": 4,
+      "source": "ocr",
+      "confidence": 84.8753280839895,
+      "skew_angle_deg": 0.0,
+      "deskewed": false,
+      "orientation_rotate_deg": 90,
+      "orientation_confidence": 1.01,
+      "error": null
+    },
+    {
+      "page_number": 5,
+      "source": "ocr",
+      "confidence": 82.21296296296296,
+      "skew_angle_deg": 0.982117163224188,
+      "deskewed": true,
+      "orientation_rotate_deg": 90,
+      "orientation_confidence": 20.25,
+      "error": null
+    },
+    {
+      "page_number": 6,
+      "source": "ocr",
+      "confidence": 83.87355371900827,
+      "skew_angle_deg": 0.0,
+      "deskewed": false,
+      "orientation_rotate_deg": 90,
+      "orientation_confidence": 22.79,
+      "error": null
+    }
+  ]
+}

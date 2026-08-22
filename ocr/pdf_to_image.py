@@ -11,6 +11,7 @@ all) is treated as needing OCR.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -45,6 +46,58 @@ DEFAULT_DPI = 300  # matches the reconnaissance measurements this module is base
 # 4x or more.
 MAX_RENDER_DIMENSION_PX = 4000
 
+# Guards against a native text layer that exists but is unusable — found by the
+# Issue 6 ground-truth annotation, not by any automated check: several PDFs
+# carry a text layer produced with a broken font encoding, so PyMuPDF extracts
+# character soup ("ROYAI]ME DU i\{AROC" instead of "ROYAUME DU MAROC") while
+# `len(text) > NATIVE_TEXT_MIN_CHARS` still passes. Those documents were
+# classified `native`, skipped OCR entirely, and stored garbage silently — the
+# worst possible failure mode, because nothing downstream signals it.
+#
+# Two thresholds rather than one, because neither alone separates the confirmed
+# cases from healthy documents (measured over the 113 native documents of the
+# corpus):
+#   * MALFORMED_TOKEN_MAX_RATIO — share of word-like tokens that are not clean
+#     letter sequences. Healthy median 19%, p90 32%; confirmed-broken 43%+.
+#     Also catches Arabic-script pages whose text layer is mojibake.
+#   * NOISE_CHARS_MAX_PER_1000 — density of []{}\| characters, which broken
+#     font maps sprinkle inside words. Healthy median 0.0; confirmed-broken
+#     4.8 and 11.7.
+# One confirmed case scores 27% malformed (inside the healthy range) but 4.8
+# noise, the other 43% malformed — hence the OR. Together they flag 15/113
+# native documents (13%).
+#
+# KNOWN LIMITATION — a second, milder failure class is NOT detected here: a PDF
+# whose text layer came from someone else's mediocre OCR (confirmed case:
+# "Marché n' 19/CS/2026", "siqnalisation"). That text is ~90% correct French,
+# so both metrics rate it healthy. It stays classified `native`. Impact is much
+# lower (the text is usable, with scattered character errors) but it means
+# `native` does not guarantee a pristine text layer.
+MALFORMED_TOKEN_MAX_RATIO = 0.35
+NOISE_CHARS_MAX_PER_1000 = 4.0
+
+_TOKEN_RE = re.compile(r"\S{3,}")
+_CLEAN_TOKEN_RE = re.compile(r"^[A-Za-zÀ-ÿ]+[.,;:)]?$")
+_NOISE_CHARS_RE = re.compile("[" + re.escape('[]{}\\|') + "]")
+
+
+def text_looks_corrupted(text: str) -> bool:
+    """True when an extracted text layer is present but not usable as text.
+
+    Deliberately conservative: a page wrongly sent to OCR only costs time,
+    while a corrupted page wrongly kept as `native` silently poisons every
+    downstream extraction step.
+    """
+    if not text:
+        return False
+    tokens = [t for t in _TOKEN_RE.findall(text) if any(c.isalpha() for c in t)]
+    if len(tokens) >= 20:
+        malformed = sum(1 for t in tokens if not _CLEAN_TOKEN_RE.match(t)) / len(tokens)
+        if malformed > MALFORMED_TOKEN_MAX_RATIO:
+            return True
+    noise_per_1000 = len(_NOISE_CHARS_RE.findall(text)) / max(len(text) / 1000, 0.1)
+    return noise_per_1000 > NOISE_CHARS_MAX_PER_1000
+
 
 @dataclass
 class PageContent:
@@ -60,10 +113,12 @@ def extract_native_pages(pdf_path: str | Path) -> list[PageContent]:
         pages = []
         for i, page in enumerate(doc):
             text = page.get_text().strip()
+            usable = (len(text) > NATIVE_TEXT_MIN_CHARS
+                      and not text_looks_corrupted(text))
             pages.append(PageContent(
                 page_number=i + 1,
-                native_text=text,
-                has_native_text=len(text) > NATIVE_TEXT_MIN_CHARS,
+                native_text=text if usable else "",
+                has_native_text=usable,
             ))
         return pages
     finally:
