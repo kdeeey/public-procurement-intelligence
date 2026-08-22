@@ -3,7 +3,7 @@
 > Documente les choix qui ne se lisent pas directement dans le code : pourquoi tel paramètre plutôt qu'un autre, quelles limites ont été mesurées plutôt que supposées.
 > Complète [`data_dictionary.md`](data_dictionary.md), [`discovery_notes.md`](discovery_notes.md) et [`ideas.md`](ideas.md).
 
-Dernière mise à jour : 21/08/2026
+Dernière mise à jour : 22/08/2026
 
 ---
 
@@ -72,27 +72,36 @@ Ce document (tableau de montants par lot et par concurrent, listes d'entreprises
 
 **Conclusion : ce cas n'est plus un exemple de limite connue.** Il illustre plutôt à quel point une mauvaise configuration silencieuse (§1.1) peut faire passer un document parfaitement récupérable pour un cas dégradé — leçon méthodologique à retenir pour l'évaluation d'Issue 6/7 : toujours vérifier la configuration effective avant de conclure qu'un document est irrécupérable.
 
-### 1.7 Distribution finale mesurée (388 PV réels, correctifs actifs à l'échelle)
+### 1.7 Distribution finale mesurée (388 PV réels)
 
-Deux runs successifs sur le corpus complet, comparables terme à terme :
+Trois runs successifs sur le corpus complet, comparables terme à terme :
 
-| Statut | Run initial (390, `--psm 6` par piège de config, avant §1.3/§1.4) | Run final (388, `fra+ara` + `--psm 3` + exclusion pages vides + `EXCLUDED_STEMS`) |
-|---|---:|---:|
-| `native` | 113 (29,0 %) | 113 (29,1 %) |
-| `ocr_success` | 267 (68,5 %) | **275 (70,9 %)** |
-| `ocr_low_confidence` | 10 (2,6 %) | **0 (0,0 %)** |
-| `ocr_failed` | 0 (0 %) | 0 (0 %) |
+| Statut | Run 1 — `--psm 6` par piège de config (390) | Run 2 — `fra+ara` + `--psm 3` + pages vides + `EXCLUDED_STEMS` (388) | Run 3 — **+ détection de couche texte corrompue** (388) |
+|---|---:|---:|---:|
+| `native` | 113 (29,0 %) | 113 (29,1 %) | **87 (22,4 %)** |
+| `ocr_success` | 267 (68,5 %) | 275 (70,9 %) | **301 (77,6 %)** |
+| `ocr_low_confidence` | 10 (2,6 %) | **0** | **0** |
+| `ocr_failed` | 0 | 0 | **0** |
 
-Le run final porte sur 388 documents (390 − 2 `EXCLUDED_STEMS`, voir §1.5). **0 document en faible confiance, 0 échec** — les correctifs tiennent à l'échelle, pas seulement sur les 10 cas ciblés initialement testés. 14 rotations OSD déclenchées sur ce run, plage `orientation_conf` 1,01-22,79 — cohérent avec le sondage précédent, aucune anomalie nouvelle.
+**Le déplacement de 26 documents entre `native` et `ocr_success` au run 3 est la signature du correctif §1.10** : ces documents avaient une couche texte présente mais inexploitable, et étaient donc classés `native` sans jamais passer par l'OCR. Parmi eux, **12 sont désormais mixtes** — leurs pages saines restent lues en natif, seules les pages corrompues sont océrisées, la décision se prenant page par page et non document par document.
+
+14 rotations OSD déclenchées, plage `orientation_conf` 1,01-22,79 — identique au run précédent, ce qui confirme l'absence de régression sur cette partie.
 
 ### 1.8 Temps de traitement
 
-Run final : 310,6 min (18 634,7 s) sur 388 documents, soit 48,0 s/document en moyenne — mais cette moyenne était tirée par deux facteurs distincts, un seul corrigé depuis :
+| Run | Durée | Moyenne | Contexte |
+|---|---:|---:|---|
+| Run 2 | 310,6 min | 48,0 s/doc | Contention machine + le document `/MediaBox` à 1h58 (§1.9) |
+| **Run 3** | **124,7 min** | **19,3 s/doc** | Correctif §1.9 actif, malgré 26 documents supplémentaires envoyés à l'OCR |
 
-1. **Contention machine intermittente** (applications tierces lourdes) — cause un ralentissement généralisé et réversible (rythme divisé par ~2 à ~15, revient à la normale dès la fermeture des applications). Non corrigeable côté code, limite d'environnement à connaître.
-2. **Un document anormalement lourd** (`c87a91a5...`, 2026) : **7 133,9 s (1h58) à lui seul** dans ce run — 38 % du temps de calcul total pour 1 document sur 388. **Cause identifiée et corrigée** (voir §1.9) : ce n'était pas un vrai scan haute résolution mais un artefact de rendu dû à un `/MediaBox` PDF malformé.
+La division par 2,5 du temps total vient presque entièrement de la suppression du cas `/MediaBox` (§1.9), qui à lui seul représentait 38 % du temps du run 2.
 
-**Rythme représentatif hors contention machine** (documents de résolution normale, fix §1.9 appliqué) : ~11-16 s/document. À dimensionner sur cette base pour Issue 6/7, pas sur la moyenne brute de 48 s/document du run qui a servi à découvrir ces deux problèmes.
+Deux facteurs à connaître pour dimensionner Issue 6/7 :
+
+1. **Contention machine intermittente** (applications tierces lourdes) — ralentissement généralisé et réversible, observé sur les deux runs longs : le rythme passe de ~12 s à ~26 s, voire ~200 s/document, et redevient normal dès la fermeture des applications. Non corrigeable côté code.
+2. **La moyenne masque une forte dispersion** : un PDF d'une page en natif se traite en 0,1 s, un scan de 8 pages en plus de 100 s.
+
+**Base de dimensionnement recommandée : ~12-19 s/document** sur une machine non chargée.
 
 ### 1.9 `/MediaBox` malformé — cause racine identifiée et corrigée
 
@@ -109,3 +118,37 @@ Diagnostic du document `c87a91a5...` (§1.8) : le `/MediaBox` du PDF déclare un
 | `ocr_status` | `ocr_success` (73,0) | `ocr_success` (**82,0**, qualité même légèrement meilleure) |
 
 Facteur **~149×** sur le temps, sans perte de qualité — confirmé par une régression sur 35 tests unitaires (`scraper/tests/`, tous passants) et par relecture du texte produit (français lisible, en-tête arabe correctement décodé via `fra+ara`). Document non exclu du pipeline : ce n'était pas une donnée dégradée, seulement une cause corrigée à la source, conformément au principe déjà appliqué en §1.6 pour `44b28d32...` — toujours vérifier la configuration/le rendu effectif avant de conclure qu'un document est irrécupérable ou anormal.
+
+### 1.10 Couche texte présente mais corrompue — le défaut le plus grave trouvé
+
+**Trouvé par l'annotation de vérité terrain, pas par un contrôle automatique.** En annotant les 20 documents de référence (Issue 6), l'annotation a signalé des documents classés `native` dont le texte était en réalité illisible. Vérification faite : c'était exact.
+
+Le PDF porte une couche texte produite avec un **encodage de police cassé**. PyMuPDF l'extrait sans erreur, mais le résultat est de la soupe de caractères :
+
+```text
+ROYAI]ME DU i\{AROC              (= ROYAUME DU MAROC)
+N4 lNiS'f t lli'l l t)ir t.'      (= MINISTERE DE L'INTERIEUR)
+RÛYATIME DLJ MAROC               (= ROYAUME DU MAROC)
+```
+
+**Pourquoi c'était le pire défaut possible** : `has_native_text` ne vérifiait que la *longueur* du texte (`> NATIVE_TEXT_MIN_CHARS`), jamais sa *plausibilité*. Ces documents passaient donc pour natifs, **sautaient entièrement l'OCR**, et stockaient du charabia sans qu'aucun indicateur ne le signale — ni `ocr_status`, ni confiance, ni erreur. Ils auraient traversé l'Issue 7 en produisant zéro extraction, et on aurait cherché la cause dans les regex.
+
+**Correctif** (`ocr/pdf_to_image.py`, `text_looks_corrupted()`) : deux seuils combinés par un `OU`, calibrés sur les 113 documents natifs réels du corpus — pas choisis à l'intuition.
+
+| Métrique | Documents sains | Cas confirmés cassés |
+|---|---|---|
+| `MALFORMED_TOKEN_MAX_RATIO` — part de tokens qui ne sont pas des suites de lettres propres | médiane 19 %, p90 32 % | 27 % et 43 % |
+| `NOISE_CHARS_MAX_PER_1000` — densité de `[]{}\|` semés par les polices cassées | médiane 0,0 | 4,8 et 11,7 |
+
+**Il fallait bien les deux** : un cas confirmé est à 27 % de tokens malformés — dans la plage saine — et n'est rattrapé que par le bruit (4,8) ; l'autre est dans la situation inverse. Aucune des deux métriques seule ne sépare les cas confirmés des documents sains.
+
+**Résultat mesuré** : 26 documents sortent du statut `native` (dont 12 en mode mixte), et après régénération complète du corpus **plus aucune page native ne déclenche le détecteur**. Les 6 cas vérifiés à la main sont tous détectés — les 2 signalés par l'annotation, plus 4 autres identifiés en inspectant les scores extrêmes.
+
+**Limite connue, non corrigée.** Une **seconde classe de défaut** échappe à ce contrôle : un PDF dont la couche texte provient d'un OCR tiers de qualité médiocre. Cas confirmé dans le corpus (`Marché n' 19/CS/2026`, `siqnalisation` au lieu de `signalisation`). Ce texte est correct à ~90 %, donc les deux métriques le jugent sain, et il reste classé `native`. Ce choix est délibéré : l'impact est bien moindre (le texte reste exploitable, avec des erreurs de caractères éparses), et un seuil assez agressif pour l'attraper enverrait à l'OCR des dizaines de documents parfaitement sains. **`native` ne garantit donc pas une couche texte parfaite** — à garder en tête lors de l'évaluation d'Issue 6.
+
+### 1.11 Ce que cet épisode dit de la méthode
+
+Ce défaut n'a été trouvé ni par les 35 tests unitaires, ni par les statuts du pipeline, ni par la confiance moyenne — tous étaient au vert. Il a fallu qu'un humain lise un PDF et le compare au texte produit.
+
+C'est l'argument le plus concret en faveur de la vérité terrain : **elle ne sert pas seulement à produire un taux d'erreur en fin de chaîne, elle révèle des défauts qu'aucun indicateur interne ne peut signaler**, parce qu'un pipeline qui se note lui-même ne peut pas détecter qu'il mesure la mauvaise chose.
+
