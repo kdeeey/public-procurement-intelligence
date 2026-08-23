@@ -152,3 +152,160 @@ Ce défaut n'a été trouvé ni par les 35 tests unitaires, ni par les statuts d
 
 C'est l'argument le plus concret en faveur de la vérité terrain : **elle ne sert pas seulement à produire un taux d'erreur en fin de chaîne, elle révèle des défauts qu'aucun indicateur interne ne peut signaler**, parce qu'un pipeline qui se note lui-même ne peut pas détecter qu'il mesure la mauvaise chose.
 
+
+---
+
+## 2. Nettoyage de texte et évaluation OCR (Issue 6)
+
+Deux livrables : `ocr/text_cleaning.py` (nettoyage) et `scripts/evaluate_ocr.py` (taux de récupération mesuré contre la vérité terrain).
+
+### 2.1 Ce que mesure l'évaluation, et ce qu'elle ne mesure pas
+
+La question posée est **« l'OCR a-t-il préservé l'information ? »**, pas « sait-on l'extraire ? » qui est l'Issue 7. Concrètement : pour chaque valeur qu'un humain a lue sur le PDF source, cette valeur est-elle retrouvable dans le texte produit par le pipeline ?
+
+La comparaison est **volontairement différenciée par type de champ** — une stratégie unique serait fausse :
+
+| Champ | Méthode | Pourquoi |
+|---|---|---|
+| `reference_pv`, `concurrent_retenu` | sous-chaîne normalisée, puis similarité ≥ 0,85 | valeurs courtes et distinctives ; une lettre mal reconnue doit compter « approché », pas « absent » |
+| `date_*` | sous-chaîne exacte, plusieurs formats testés | une date est juste ou fausse ; « approximativement le 28/12/2023 » n'a aucun sens |
+| `montant_offre_retenue` | **comparaison numérique** (voir §2.3) | jamais une comparaison de chaîne |
+| `acheteur_public`, `objet` | rappel de tokens distinctifs (mots vides écartés) | l'annotation reformule ces champs ; une sous-chaîne mesurerait la fidélité de la reformulation, pas l'OCR |
+| `statut` | **exclu** | label dérivé (`ATTRIBUE` / `INFRUCTUEUX`), pas une chaîne présente dans le document |
+
+### 2.2 Résultat mesuré (20 documents annotés, 134 valeurs)
+
+| Champ | Trouvé |
+|---|---:|
+| `reference_pv` | **20/20 — 100 %** |
+| `concurrent_retenu` | **18/18 — 100 %** |
+| `objet` | 20/20 — 100 % |
+| `acheteur_public` | 20/20 — 100 % |
+| `date_ouverture_plis` | 19/20 — 95 % |
+| `date_achevement_commission` | 16/18 — 89 % |
+| `montant_offre_retenue` | 15/18 — 83 % |
+| **TOTAL** | **96 %** |
+
+Les deux champs les plus critiques pour l'Issue 7 — la référence du marché et le nom du concurrent retenu — sont retrouvés à **100 %**.
+
+### 2.3 Les variations du taux global sont des corrections de biais de mesure, pas des dégradations du pipeline
+
+**À ne jamais relire comme des régressions.** Le taux global est passé par 94 %, puis 93 %, puis 96 % au cours de l'Issue 6. **Le pipeline OCR n'a pas changé une seule fois entre ces chiffres** : à chaque étape, c'est l'instrument de mesure qui a été corrigé. Trois biais ont été trouvés et corrigés, chacun en vérifiant un résultat qui paraissait anormal plutôt qu'en l'acceptant.
+
+| Étape | Taux | Ce qui a changé |
+|---|---:|---|
+| Mesure initiale | 94 % | — |
+| Correction n°1 : comparaison numérique des montants | 93 % | 3 faux positifs supprimés, 1 faux négatif récupéré |
+| Correction n°2 : regex n'avalant plus les sauts de ligne | 93 % | 1 montant présent cessait d'être masqué |
+| Correction n°3 : dates écrites en toutes lettres | **96 %** | 4 dates correctement transcrites cessaient d'être comptées en échec |
+
+La baisse comme la hausse sont donc des assainissements. Le 96 % final est le seul chiffre défendable des quatre.
+
+La première version comparait les montants comme des chaînes, après une normalisation qui supprime tout caractère non alphanumérique. Cette normalisation **détruit la position du séparateur décimal** : `721224.86`, `72122.486` et `7212248.6` se réduisent tous à `72122486`. Trois montants séparés d'un facteur 100 étaient donc comptés identiques.
+
+Correction : les montants sont désormais **parsés en flottants et comparés numériquement** (tolérance 0,01 DH), avec un parseur gérant les séparateurs de milliers (espace, point) et décimaux (virgule, point) réellement rencontrés.
+
+Effet mesuré sur les 18 montants — 4 verdicts modifiés, chacun vérifié dans le texte source :
+
+| Document | Attendu | Avant | Après | Ce que contient réellement le texte |
+|---|---|---|---|---|
+| `3d46704d` | 61 632,00 | trouvé | **absent** | `6163200` — l'OCR a perdu la virgule décimale |
+| `ec81443a` | 922 770,00 | trouvé | **absent** | `922` seul — montant fragmenté sur plusieurs lignes |
+| `03d5069b` | 183 600,00 | trouvé | trouvé | présent et correct |
+| `0ebc5731` | 3 322 992,00 | absent | **trouvé** | `3 322 992,OO` — décimales écrites avec des lettres O |
+
+Soit **3 faux positifs supprimés et 1 faux négatif récupéré**. Le taux de 83 % sur ce champ est donc plus faible mais **exact**, là où 94 % était flatteur et faux. La qualité réelle de l'OCR est inchangée ; seule sa mesure s'est assainie.
+
+### 2.4 Recollage entre lignes : souhaitable pour le texte, faux pour les nombres
+
+Un second défaut a été trouvé en corrigeant le premier : la regex d'extraction des montants utilisait `\s`, qui matche aussi les sauts de ligne. Elle fusionnait `1838 00` d'une ligne avec `183 600,00` de la suivante en un seul token valant 183 800 — masquant un montant pourtant présent.
+
+La vérification a été étendue aux autres champs, car la normalisation appliquée au document entier supprime elle aussi les sauts de ligne. Résultat : **2 valeurs ne matchent que grâce à ce recollage, et les deux sont légitimes** — `TANSIFT` / `CONTRACTOR` et un nom de groupement, coupés par la mise en page du tableau.
+
+D'où une distinction de principe, pas un compromis :
+
+- **Champs texte** : recoller les lignes est *correct*. Les noms d'entreprises et les libellés sont couramment coupés par la mise en page ; une comparaison ligne par ligne produirait des faux négatifs.
+- **Champs numériques** : recoller est *faux*. Un nombre ne s'étale jamais sur deux lignes, donc la fusion fabrique une valeur différente.
+
+Aucune date n'est concernée (0 valeur dépendant d'un recollage). Le défaut était donc bien localisé aux montants, et il est clos.
+
+### 2.5 HT / TTC — décision à prendre AVANT l'Issue 7
+
+**Point ouvert, à trancher, pas seulement à documenter.**
+
+Le champ `montant_offre_retenue` mélange aujourd'hui deux bases de calcul selon ce que le PDF source met en avant :
+
+| Document | Montant retenu | Base |
+|---|---|---|
+| `aabc5317` (211/2025) | 9 269 719,80 | **TTC** (le PDF donne aussi 7 724 766,50 HT) |
+| `ca886572` (205/2025) | 4 910 112,00 | **TTC** (HT correspondant : 4 091 760,00) |
+| `07e10b77` (56/2024) | 2 196 000,00 | **HT** (tranche ferme) |
+| `ec81443a` (118/2025) | 922 770,00 | **HT** (le PDF ne donne aucun TTC) |
+
+Ce n'est pas un écart d'annotation : les acheteurs n'écrivent pas tous la même base, et certains PV ne donnent qu'une seule des deux valeurs.
+
+**Conséquence si on ne tranche pas** : un écart de l'ordre du taux de TVA entre documents comparables. Toute statistique de l'Issue 10 (`total_amount`, `average_amount`, `market_share`) et tout red flag fondé sur les montants (`ideas.md` §2.6) seraient calculés sur des grandeurs non homogènes — un marché à 1 M HT et un marché à 1 M TTC ne représentent pas la même dépense publique.
+
+**Ce qu'il faut décider avant d'écrire l'extraction (Issue 7)** :
+
+1. L'extraction doit produire **deux champs distincts** — `montant_ht` et `montant_ttc` — plutôt qu'un `montant_offre_retenue` ambigu, et laisser à `None` celui que le document ne donne pas. **Ne jamais déduire l'un de l'autre** en appliquant un taux de TVA supposé : le taux varie selon la nature du marché, et une valeur calculée ne doit pas être stockée comme une valeur lue.
+2. `data_dictionary.md` §3.1 doit être mis à jour en conséquence.
+3. Les agrégations de l'Issue 10 doivent choisir **une seule base** et écarter explicitement les marchés où elle est absente, plutôt que de mélanger.
+
+Tant que ce point n'est pas tranché, `montant_offre_retenue` de la vérité terrain doit être lu comme « le montant que le PDF met en avant », pas comme une grandeur homogène entre documents.
+
+### 2.6 Le nettoyage n'apporte aucun gain mesurable — et c'est dit tel quel
+
+`ocr/text_cleaning.py` transforme réellement le corpus (mesuré sur les 388 documents) :
+
+| Transformation | Total | Documents touchés |
+|---|---:|---:|
+| Marques invisibles supprimées (U+200E / U+200F) | 9 267 | 298 |
+| Caractères de police symbole restaurés | 439 | 18 |
+| Lignes d'en-tête / pied de page répétées retirées | 15 | 7 |
+| Arabe **isolé** dans `text_ar` (jamais supprimé) | 37 089 | 321 |
+
+Mais sur la mesure de récupération : **93 % avant nettoyage, 93 % après, soit +0 point**. Testé aussi sur des regex d'extraction typiques de l'Issue 7 : 722 captures dans les deux cas, +0.
+
+L'explication n'avait pas été anticipée : la normalisation de comparaison supprime déjà tout caractère non alphanumérique, donc elle neutralise d'avance exactement le bruit que le nettoyage retire. Les deux se recouvrent.
+
+Le nettoyage garde une utilité non démontrée par cette mesure — lisibilité humaine, séparation de l'arabe pour le NER de l'Issue 8, robustesse si une regex future est moins tolérante — mais **il serait malhonnête de le présenter comme un gain de qualité OCR**. Il est conservé pour ces raisons, pas pour un bénéfice chiffré.
+
+### 2.7 Un bug attrapé par la mesure elle-même
+
+La première version de `strip_page_furniture` supprimait la ligne `Date d'ouverture des plis : Le 27/07/2026 à 12 heures` d'un PV multi-lots : le motif censé repérer les pieds de page `1/2` reconnaissait aussi le `27/07` d'une date, et la ligne se répétait une fois par lot.
+
+L'évaluation l'a détecté comme une valeur de vérité terrain perdue (−0,7 point) **avant** que le nettoyage soit considéré comme acquis. Corrigé par un garde-fou explicite : une ligne portant une date complète n'est jamais traitée comme un pied de page, quoi qu'elle ressemble par ailleurs. Six cas de test couvrent la règle.
+
+C'est l'argument concret en faveur de l'ordre suivi : construire la mesure d'abord, puis le traitement — et non l'inverse.
+
+### 2.8 Correction n°3 — dates écrites en toutes lettres
+
+Le champ `date_ouverture_plis` plafonnait à 80 %, ce qui paraissait bas pour une information aussi structurée. Vérification faite, un document du corpus ne contient **aucune date numérique** :
+
+```text
+- Date d'ouverture des plis : Le mardi 19 décembre 2023 à 12 heures.
+```
+
+`date_variants()` ne générait que des formes numériques (`19/12/2023`, `19122023`). Une date parfaitement transcrite par l'OCR était donc comptée en échec — troisième biais de mesure de la même famille que les deux précédents.
+
+Correction : génération des formes textuelles françaises (`19 décembre 2023`) en plus des formes numériques. Les accents sont sans effet, la normalisation les supprimant des deux côtés.
+
+**Effet mesuré : 4 dates récupérées.** `date_ouverture_plis` passe de 80 % à 95 %, `date_achevement_commission` de 83 % à 89 %, le taux global de 93 % à 96 %.
+
+### 2.9 Les 6 échecs restants sont de vraies dégradations OCR
+
+Après les trois corrections, chaque échec restant a été vérifié dans le texte source. **Aucun n'est un artefact de mesure** — le 96 % est un plancher réel, pas un plafond d'instrument.
+
+| Document | Champ | Ce que contient le texte | Nature |
+|---|---|---|---|
+| `0ebc5731` | date achèvement | `tZlL2l2O25` | caractères illisibles (`l` pour `1`, `O` pour `0`) |
+| `48f26629` | date ouverture | `13107 /2026` | le `/` lu comme `1` puis `0` |
+| `48f26629` | date achèvement | absente | perte réelle |
+| `3d46704d` | montant | `6163200` | virgule décimale perdue (facteur 100) |
+| `ec81443a` | montant | `922` seul | montant fragmenté sur plusieurs lignes |
+| `551178cf` | montant | absent | perte réelle |
+
+Trois échecs sur six concernent des **séparateurs** (virgule décimale, barre de date) — le point faible mesuré de l'OCR sur ce corpus. C'est une information directement exploitable pour l'Issue 7 : les regex d'extraction devront tolérer un séparateur manquant ou mal reconnu, plutôt que d'exiger un format strict.
+
+**Leçon méthodologique de l'Issue 6** : sur quatre chiffres successifs (94 %, 93 %, 93 %, 96 %), trois étaient faux. Aucun des trois biais n'aurait été trouvé sans vérifier dans le document source *pourquoi* un résultat paraissait anormal. Un taux d'erreur qu'on n'a pas cherché à contredire ne vaut rien.

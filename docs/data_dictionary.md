@@ -4,7 +4,7 @@
 > Basé sur l'exploration manuelle réelle du site (voir [`discovery_notes.md`](discovery_notes.md)) et 25+ documents réels collectés (consultations, PV, résultats définitifs) auprès de plus de 15 acheteurs publics différents.
 > Remplace les hypothèses initiales du README (§6, §12, §33) là où elles ont été corrigées par l'exploration réelle.
 
-Dernière mise à jour : 17/08/2026
+Dernière mise à jour : 22/08/2026
 
 ---
 
@@ -101,7 +101,10 @@ Champs confirmés réels, capturés depuis la page de détail d'une consultation
 | `date_achevement_travaux_commission` | |
 | `lot_numero` | Nullable — présent seulement si `Procurement.allotissement = Oui` |
 | `concurrent_retenu` | Nom d'entreprise **ou groupement** (ex: "Groupement ART STAM SARL AU et TECH-LUX SARL AU") — jamais déduit par calcul, toujours lu explicitement |
-| `montant_offre_retenue` | Nullable si pas de gagnant |
+| ~~`montant_offre_retenue`~~ | **Remplacé par `montant_ht` et `montant_ttc`** — voir §3.6 |
+| `montant_ht` | Montant hors taxes. `None` si le document ne le donne pas — **jamais calculé** |
+| `montant_ttc` | Montant toutes taxes comprises. `None` si absent — **jamais calculé** |
+| `montant_base_affichee` | `HT` ou `TTC` : la base que le PV met en avant, pour la traçabilité |
 | `statut` | Voir enum §3.3 |
 | `delai_execution` | Nullable — vu sur PV multi-lots uniquement (ex: "8 mois") |
 | `president_commission` | Signataire |
@@ -147,6 +150,37 @@ Deux documents du corpus (sur 390) sont exclus de l'extraction OCR (`scripts/run
 | `9d2a5e07...1e1` | Page OCR réellement blanche (confirmé : luminosité 254,96/255) | `Award` **non exploitable** — mais la `Procurement` associée reste disponible via la page 1, en texte natif |
 
 **Conséquence pour l'extraction (Issue 7) et les agrégations (Issue 9/10)** : ces deux `reference` auront une `Procurement` mais aucun `Award` dérivable du PV correspondant. Ne pas traiter une jointure `Procurement`↔`Award` manquante comme une erreur de pipeline pour ces deux cas précis — c'est un état de données attendu et documenté, pas un bug de jointure.
+
+
+### 3.6 Montants — `montant_ht` et `montant_ttc` séparés, jamais déduits l'un de l'autre
+
+> **Décision tranchée (22/08/2026)**, à appliquer dès l'Issue 7. Remplace le champ unique `montant_offre_retenue`, ambigu.
+
+**Le constat mesuré.** Les acheteurs n'écrivent pas tous la même base, et certains PV ne donnent qu'une seule des deux valeurs :
+
+| Document | Montant mis en avant | Base | L'autre base est-elle donnée ? |
+|---|---|---|---|
+| 211/2025 (SRM-FM) | 9 269 719,80 | TTC | oui — 7 724 766,50 HT |
+| 205/2025 (SRM-FM) | 4 910 112,00 | TTC | oui — 4 091 760,00 HT |
+| 56/2024 (Barid Al Maghrib) | 2 196 000,00 | HT | non |
+| 118/2025 (Fondation Mohammed VI) | 922 770,00 | HT | non — le PV précise « Actes d'engagement HT » |
+
+Ce n'est pas un défaut d'annotation : c'est la réalité des documents.
+
+**Pourquoi un champ unique est inacceptable.** L'écart entre les deux bases est celui de la TVA. Un marché à 1 M HT et un marché à 1 M TTC ne représentent pas la même dépense publique. Les mélanger fausserait :
+
+- `total_amount`, `average_amount`, `market_share` par entreprise (Issue 10)
+- le red flag « écart de prix » et tout indicateur monétaire (`ideas.md` §2.6)
+- la comparaison entre entreprises et entre acheteurs — c'est-à-dire le cœur de l'analyse
+
+**La règle.**
+
+1. **Deux champs distincts**, `montant_ht` et `montant_ttc`. Chacun vaut `None` si le document ne le donne pas.
+2. **Interdiction de déduire l'un de l'autre.** Ne jamais appliquer un taux de TVA supposé pour remplir le champ manquant : le taux varie selon la nature du marché (travaux, fournitures, services), et une valeur calculée ne doit jamais être stockée comme une valeur lue. Une donnée absente reste absente.
+3. **`montant_base_affichee`** conserve laquelle des deux le PV met en avant — information utile pour l'analyse des pratiques d'acheteurs, et pour retracer une valeur jusqu'à sa source.
+4. **Les agrégations choisissent une base unique** et écartent explicitement les marchés où elle manque, plutôt que de mélanger. Le nombre de marchés écartés doit être reporté avec le résultat, jamais passé sous silence.
+
+**Conséquence assumée.** Sur l'échantillon annoté, 2 marchés sur 4 examinés ne donnent que le HT. Une agrégation en TTC perdrait donc une part significative du corpus. C'est le prix d'une grandeur homogène — un total calculé sur des bases mélangées serait faux sans être détectable.
 
 ---
 
