@@ -98,7 +98,7 @@ Reprend la logique déjà validée dans `data_dictionary.md` : ne jamais préten
 | Red flag (Fazekas) | Calcul envisagé | Pourquoi il est retiré |
 |---|---|---|
 | Délai de soumission court | `date_limite_remise_plis − date_mise_ligne` | Les deux champs sont vides sur toute consultation déjà attribuée |
-| Écart de prix (final vs estimé) | `montant_offre_retenue / estimation_dhs_ttc` | ~~**on a les deux champs**, contrairement à Fazekas qui n'avait que le prix final~~ — l'estimation et le montant final ne coexistent jamais sur un même marché |
+| Écart de prix (final vs estimé) | `montant_ttc / estimation_dhs_ttc` (champ renommé, voir `data_dictionary.md` §3.6) | ~~**on a les deux champs**, contrairement à Fazekas qui n'avait que le prix final~~ — l'estimation et le montant final ne coexistent jamais sur un même marché |
 
 **Constat mesuré, pas supposé.** Sur une consultation déjà attribuée, le portail rend la page de détail dans le contexte de l'**annonce d'extrait de PV**, pas de l'annonce de consultation d'origine. Dans ce contexte, `estimation_dhs_ttc`, `caution_provisoire`, `date_limite_remise_plis` et `date_mise_ligne` sont **structurellement vides** : les libellés sont bien rendus, mais sans valeur (`Estimation (en Dhs TTC) * : @@@@`, `Caution provisoire :` vide, aucune mention de « remise des plis »).
 

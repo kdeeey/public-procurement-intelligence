@@ -101,13 +101,14 @@ Champs confirmés réels, capturés depuis la page de détail d'une consultation
 | `date_achevement_travaux_commission` | |
 | `lot_numero` | Nullable — présent seulement si `Procurement.allotissement = Oui` |
 | `concurrent_retenu` | Nom d'entreprise **ou groupement** (ex: "Groupement ART STAM SARL AU et TECH-LUX SARL AU") — jamais déduit par calcul, toujours lu explicitement |
-| ~~`montant_offre_retenue`~~ | **Remplacé par `montant_ht` et `montant_ttc`** — voir §3.6 |
 | `montant_ht` | Montant hors taxes. `None` si le document ne le donne pas — **jamais calculé** |
 | `montant_ttc` | Montant toutes taxes comprises. `None` si absent — **jamais calculé** |
 | `montant_base_affichee` | `HT` ou `TTC` : la base que le PV met en avant, pour la traçabilité |
 | `statut` | Voir enum §3.3 |
 | `delai_execution` | Nullable — vu sur PV multi-lots uniquement (ex: "8 mois") |
 | `president_commission` | Signataire |
+
+> **Champ supprimé** : `montant_offre_retenue` n'existe plus. Il mélangeait HT et TTC selon l'acheteur, ce qui rendait toute agrégation fausse sans être détectable. Il est remplacé par les trois champs ci-dessus (`montant_ht`, `montant_ttc`, `montant_base_affichee`) — voir §3.6 pour la décision et ses conséquences. Ce tableau est la seule référence de ce qu'il faut extraire.
 
 ### 3.2 Champs additionnels — PV uniquement (source la plus riche)
 
@@ -146,7 +147,7 @@ Deux documents du corpus (sur 390) sont exclus de l'extraction OCR (`scripts/run
 
 | `doc_id` (hash) | Raison | Conséquence sur `Award` |
 |---|---|---|
-| `65597f99...cf78` | Faux positif de rotation OSD confirmé — la page 2 (celle qui porte `concurrent_retenu`/`montant_offre_retenue`) reste illisible après une rotation 180° appliquée à tort sur une page déjà correcte | `Award` **non exploitable** pour cette référence — la page 1 (en-tête) est lisible mais ne contient pas les champs d'attribution |
+| `65597f99...cf78` | Faux positif de rotation OSD confirmé — la page 2 (celle qui porte les champs d'attribution : `concurrent_retenu` et les montants) reste illisible après une rotation 180° appliquée à tort sur une page déjà correcte | `Award` **non exploitable** pour cette référence — la page 1 (en-tête) est lisible mais ne contient pas les champs d'attribution |
 | `9d2a5e07...1e1` | Page OCR réellement blanche (confirmé : luminosité 254,96/255) | `Award` **non exploitable** — mais la `Procurement` associée reste disponible via la page 1, en texte natif |
 
 **Conséquence pour l'extraction (Issue 7) et les agrégations (Issue 9/10)** : ces deux `reference` auront une `Procurement` mais aucun `Award` dérivable du PV correspondant. Ne pas traiter une jointure `Procurement`↔`Award` manquante comme une erreur de pipeline pour ces deux cas précis — c'est un état de données attendu et documenté, pas un bug de jointure.

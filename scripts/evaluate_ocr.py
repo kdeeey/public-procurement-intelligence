@@ -29,9 +29,7 @@ Matching is deliberately field-dependent — a single strategy would be wrong:
 from __future__ import annotations
 
 import argparse
-import difflib
 import json
-import re
 import sys
 from collections import defaultdict
 from pathlib import Path
@@ -39,174 +37,30 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
 
-from ocr.text_cleaning import clean, normalize_for_matching  # noqa: E402
+from ocr.matching import EXACT, MISSING, PARTIAL, verdict_in_text  # noqa: E402
+from ocr.text_cleaning import clean  # noqa: E402
 
 GROUND_TRUTH = REPO / "data/samples/ground_truth.json"
 OCR_DIR = REPO / "data/processed/ocr"
 
-EXACT, PARTIAL, MISSING = "exact", "approche", "absent"
-
-FUZZY_THRESHOLD = 0.85       # short values: 1-2 wrong characters still "approché"
-TOKEN_RECALL_EXACT = 0.90    # free text: nearly all distinctive words present
-TOKEN_RECALL_PARTIAL = 0.60  # free text: the gist is there
-
-# Words carrying no discriminating power in this corpus — every PV contains
-# them, so leaving them in would inflate token recall for free-text fields.
-STOPWORDS = {
-    "de", "du", "des", "la", "le", "les", "l", "d", "et", "en", "au", "aux",
-    "pour", "par", "sur", "dans", "a", "the", "of",
-    "maitre", "ouvrage", "delegue", "monsieur", "madame", "societe", "ste",
-    "sarl", "sa", "au", "president", "directeur", "direction", "service",
-    "commune", "province", "prefecture", "royaume", "maroc", "ministere",
-}
-
-SHORT_FIELDS = ("reference_pv", "concurrent_retenu")
-DATE_FIELDS = ("date_ouverture_plis", "date_achevement_commission")
-AMOUNT_FIELDS = ("montant_offre_retenue",)
-FREETEXT_FIELDS = ("acheteur_public", "objet")
-EVALUATED_FIELDS = SHORT_FIELDS + DATE_FIELDS + AMOUNT_FIELDS + FREETEXT_FIELDS
-
-
-# French month names, for dates spelled out rather than written in digits.
-# Not a theoretical case: one corpus document contains *no numeric date at
-# all* — "Date d'ouverture des plis : Le mardi 19 décembre 2023 à 12 heures".
-# A first version of date_variants() only generated numeric forms and scored
-# that document as an OCR failure, when the OCR had transcribed the date
-# perfectly. Third measurement bug of this kind found in Issue 6.
-FRENCH_MONTHS = [
-    "janvier", "fevrier", "mars", "avril", "mai", "juin",
-    "juillet", "aout", "septembre", "octobre", "novembre", "decembre",
-]
-
-
-def date_variants(value: str) -> list[str]:
-    """Every written form a date may take: 28/12/2023, 28-12-2023, and
-    "28 décembre 2023". Accents are irrelevant — normalize_for_matching
-    strips them on both sides."""
-    m = re.match(r"\s*(\d{1,2})\D(\d{1,2})\D(\d{4})\s*$", str(value))
-    if not m:
-        return [str(value)]
-    day, month, year = m.group(1).zfill(2), m.group(2).zfill(2), m.group(3)
-    variants = [f"{day}/{month}/{year}", f"{day}{month}{year}",
-                f"{int(day)}/{int(month)}/{year}"]
-    month_index = int(month) - 1
-    if 0 <= month_index < 12:
-        month_name = FRENCH_MONTHS[month_index]
-        variants += [f"{int(day)} {month_name} {year}",
-                     f"{day} {month_name} {year}"]
-    return variants
-
-
-# Amounts must NOT go through normalize_for_matching. That helper strips every
-# non-alphanumeric character, which destroys the position of the decimal
-# separator: "721224.86", "72122.486" and "7212248.6" all collapse to
-# "72122486". Three amounts a factor 100 apart would compare equal, so a real
-# transcription error could be scored as a match. Amounts are therefore parsed
-# to floats and compared numerically.
-AMOUNT_TOLERANCE = 0.01  # DH — same cents, whatever the written form
-
-# Space and non-breaking space only - deliberately NOT \s, which also
-# matches newlines: a first version using \s merged "1838 00" on one line
-# with "183 600,00" on the next into a single token parsing to 183800.0,
-# hiding an amount that was actually present. Amounts never span lines.
-_AMOUNT_TOKEN_RE = re.compile(r"\d[\d.,  ]{1,}\d")
-
-
-def parse_amount_string(raw: str) -> float | None:
-    """Parse a Moroccan/French written amount into a float.
-
-    Handles space or dot thousands separators and comma or dot decimals:
-    "9 269 719,80" / "9.269.719,80" / "9269719.80" all give 9269719.80.
-    The rule for an ambiguous single separator is its distance from the end —
-    exactly one or two trailing digits means it is decimal, anything else
-    means thousands ("1.234.567" is 1234567, not 1.234567).
-    """
-    s = str(raw).replace(" ", "").replace(" ", "").strip()
-    if not s:
-        return None
-    has_comma, has_dot = "," in s, "." in s
-    if has_comma and has_dot:
-        decimal_sep = "," if s.rfind(",") > s.rfind(".") else "."
-        thousands_sep = "." if decimal_sep == "," else ","
-        s = s.replace(thousands_sep, "").replace(decimal_sep, ".")
-    elif has_comma or has_dot:
-        sep = "," if has_comma else "."
-        tail = s.rsplit(sep, 1)[-1]
-        if s.count(sep) == 1 and len(tail) in (1, 2):
-            s = s.replace(sep, ".")      # decimal separator
-        else:
-            s = s.replace(sep, "")       # thousands separator
-    try:
-        return float(s)
-    except ValueError:
-        return None
-
-
-def extract_amounts(text: str) -> list[float]:
-    """Every number-like token of the text, parsed as a float."""
-    values = []
-    for token in _AMOUNT_TOKEN_RE.findall(text):
-        parsed = parse_amount_string(token)
-        if parsed is not None:
-            values.append(parsed)
-    return values
-
-
-def distinctive_tokens(value: str) -> list[str]:
-    raw = re.split(r"[^A-Za-zÀ-ÿ0-9]+", str(value))
-    tokens = []
-    for token in raw:
-        norm = normalize_for_matching(token)
-        if len(norm) >= 3 and norm not in STOPWORDS:
-            tokens.append(norm)
-    return tokens
-
-
-def best_fuzzy_ratio(needle: str, haystack: str, step: int = 4) -> float:
-    """Best similarity of `needle` against any window of `haystack`."""
-    if not needle or not haystack:
-        return 0.0
-    window = len(needle)
-    best = 0.0
-    for i in range(0, max(1, len(haystack) - window + 1), step):
-        ratio = difflib.SequenceMatcher(None, needle, haystack[i:i + window]).ratio()
-        if ratio > best:
-            best = ratio
-            if best == 1.0:
-                break
-    return best
-
-
-def verdict_for(field: str, expected, text_norm: str, text_raw: str) -> str:
-    if field in DATE_FIELDS:
-        return EXACT if any(normalize_for_matching(v) in text_norm
-                            for v in date_variants(expected)) else MISSING
-
-    if field in AMOUNT_FIELDS:
-        target = parse_amount_string(expected)
-        if target is None:
-            return MISSING
-        # Numeric comparison against every number in the text — never a string
-        # match, see the note on AMOUNT_TOLERANCE.
-        return EXACT if any(abs(value - target) < AMOUNT_TOLERANCE
-                            for value in extract_amounts(text_raw)) else MISSING
-
-    if field in FREETEXT_FIELDS:
-        tokens = distinctive_tokens(expected)
-        if not tokens:
-            return MISSING
-        found = sum(1 for t in tokens if t in text_norm)
-        recall = found / len(tokens)
-        if recall >= TOKEN_RECALL_EXACT:
-            return EXACT
-        return PARTIAL if recall >= TOKEN_RECALL_PARTIAL else MISSING
-
-    needle = normalize_for_matching(expected)
-    if not needle:
-        return MISSING
-    if needle in text_norm:
-        return EXACT
-    return PARTIAL if best_fuzzy_ratio(needle, text_norm) >= FUZZY_THRESHOLD else MISSING
+# Toute la logique de comparaison vit dans ocr/matching.py, partagee avec la
+# validation de l'extraction (Issue 7) : une seule definition, donc les trois
+# biais de mesure corriges pendant l'Issue 6 ne peuvent pas reapparaitre dans
+# un second comparateur ecrit a la main.
+# Les champs de la verite terrain reellement mesurables dans le texte OCR.
+# Ecrits explicitement plutot que derives des familles de ocr/matching.py :
+# ces familles servent a choisir une REGLE de comparaison, pas a definir ce
+# que cette evaluation-ci mesure. `statut` en est absent a dessein (label
+# derive, jamais imprime tel quel dans le document).
+EVALUATED_FIELDS = (
+    "reference_pv",
+    "concurrent_retenu",
+    "date_ouverture_plis",
+    "date_achevement_commission",
+    "montant_offre_retenue",
+    "acheteur_public",
+    "objet",
+)
 
 
 def evaluate(documents: list[dict], use_cleaning: bool) -> tuple[dict, list]:
@@ -220,13 +74,12 @@ def evaluate(documents: list[dict], use_cleaning: bool) -> tuple[dict, list]:
             continue
         raw = txt_path.read_text(encoding="utf-8")
         text = clean(raw).text if use_cleaning else raw
-        text_norm = normalize_for_matching(text)
 
         for field in EVALUATED_FIELDS:
             expected = doc["valeurs_attendues"].get(field)
             if expected in (None, ""):
                 continue
-            verdict = verdict_for(field, expected, text_norm, text)
+            verdict = verdict_in_text(field, expected, text)
             results[field][verdict] += 1
             if verdict == MISSING:
                 failures.append((doc["doc_id"][:12], field, str(expected)[:55]))
