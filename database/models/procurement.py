@@ -24,7 +24,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, DateTime, Enum, Numeric, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, Enum, Integer, Numeric, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from database.models.base import Base
@@ -39,6 +39,22 @@ class CategoriePrincipale(str, enum.Enum):
     TRAVAUX = "Travaux"
     FOURNITURES = "Fournitures"
     SERVICES = "Services"
+
+
+class AnneeSource(str, enum.Enum):
+    """D'ou vient `annee` : la Passe A (PV, `annee_source="pv"`, 400 lignes,
+    fiable) ou la Passe B (listing, `annee_source="listing"`, 1350 lignes).
+
+    Distinction requise pour Issue 9/10 (data_dictionary.md n'en parlait
+    pas, gap trouve en verifiant avant de coder le pipeline Spark) : le
+    "2024" de la Passe B est concentre a 92% en decembre 2024 (414/450
+    lignes annee=2024 ET annee_source=listing ont date_mise_ligne dans
+    2024-12 — mesure reelle, pas suppose) et ne doit jamais entrer dans un
+    calcul de tendance annuelle sans etre isole ou exclu. Le "2024" de la
+    Passe A n'a pas ce biais.
+    """
+    PV = "pv"
+    LISTING = "listing"
 
 
 class Procurement(Base):
@@ -84,6 +100,10 @@ class Procurement(Base):
     # complet, pas un simple nom de lieu).
     lieu_ouverture_plis: Mapped[str | None] = mapped_column(Text)
     dossier_consultation_url: Mapped[str | None] = mapped_column(String(512))
+
+    annee: Mapped[int | None] = mapped_column(Integer, index=True)
+    annee_source: Mapped[AnneeSource | None] = mapped_column(
+        Enum(AnneeSource, name="annee_source"))
 
     # Forward refs as strings, resolved by SQLAlchemy's mapper registry once
     # every model module has been imported (see database/models/__init__.py)

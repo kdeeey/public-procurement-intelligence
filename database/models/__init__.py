@@ -8,13 +8,14 @@ mapper configuration fails with "expression ... failed to locate a name".
 from database.models.base import Base
 from database.models.company import Company, award_companies
 from database.models.document import Document, JoinStatus, OcrStatus
-from database.models.procurement import CategoriePrincipale, Procurement
+from database.models.procurement import AnneeSource, CategoriePrincipale, Procurement
 from database.models.award import Award, MontantBaseAffichee, Statut
 
 __all__ = [
     "Base",
     "Procurement",
     "CategoriePrincipale",
+    "AnneeSource",
     "Award",
     "Statut",
     "MontantBaseAffichee",

@@ -17,7 +17,7 @@ spacy
 # Data Engineering
 pandas
 numpy
-pyspark
+pyspark>=3.5
 pyarrow
 
 # Database

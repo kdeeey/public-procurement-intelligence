@@ -17,7 +17,7 @@ from pathlib import Path
 
 from sqlalchemy.orm import Session
 
-from database.models import CategoriePrincipale, Procurement
+from database.models import AnneeSource, CategoriePrincipale, Procurement
 
 
 def _parse_bool_oui_non(value) -> bool | None:
@@ -61,6 +61,15 @@ def _parse_categorie(value: str | None) -> CategoriePrincipale | None:
         return None
 
 
+def _parse_annee_source(value: str | None) -> AnneeSource | None:
+    if not value:
+        return None
+    try:
+        return AnneeSource(value)
+    except ValueError:
+        return None
+
+
 def load_procurements(session: Session, consultations_path: Path) -> dict[str, int]:
     """Insere ou met a jour un Procurement par refConsultation.
 
@@ -97,6 +106,8 @@ def load_procurements(session: Session, consultations_path: Path) -> dict[str, i
             target.date_limite_remise_plis = _parse_date(rec.get("date_limite_remise_plis"))
             target.lieu_ouverture_plis = rec.get("lieu_ouverture_plis")
             target.dossier_consultation_url = rec.get("dossier_consultation_url")
+            target.annee = rec.get("annee")
+            target.annee_source = _parse_annee_source(rec.get("annee_source"))
 
             if not existing:
                 session.add(target)
