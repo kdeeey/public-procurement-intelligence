@@ -66,7 +66,12 @@ class Procurement(Base):
     categorie_principale: Mapped[CategoriePrincipale | None] = mapped_column(
         Enum(CategoriePrincipale, name="categorie_principale"))
 
-    lieu_execution: Mapped[str | None] = mapped_column(String(128))
+    # Text, pas VARCHAR borne : mesure reelle sur consultations_full.jsonl,
+    # jusqu'a 925 caracteres (liste de plusieurs provinces concatenees) —
+    # confirme en testant reellement contre PostgreSQL (SQLite n'applique
+    # aucune limite de longueur VARCHAR, ce depassement etait invisible en
+    # local jusque-la).
+    lieu_execution: Mapped[str | None] = mapped_column(Text)
     estimation_dhs_ttc: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
     caution_provisoire: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
     qualifications: Mapped[str | None] = mapped_column(Text)
@@ -75,7 +80,9 @@ class Procurement(Base):
     reserve_tpe_pme: Mapped[bool | None] = mapped_column(Boolean)
     date_mise_ligne: Mapped[datetime | None] = mapped_column(DateTime)
     date_limite_remise_plis: Mapped[datetime | None] = mapped_column(DateTime)
-    lieu_ouverture_plis: Mapped[str | None] = mapped_column(String(255))
+    # Text, meme raison : jusqu'a 507 caracteres reels (paragraphe d'adresse
+    # complet, pas un simple nom de lieu).
+    lieu_ouverture_plis: Mapped[str | None] = mapped_column(Text)
     dossier_consultation_url: Mapped[str | None] = mapped_column(String(512))
 
     # Forward refs as strings, resolved by SQLAlchemy's mapper registry once

@@ -86,7 +86,11 @@ class Award(Base):
 
     delai_execution: Mapped[str | None] = mapped_column(String(64))
     president_commission: Mapped[str | None] = mapped_column(String(255))
-    lieu_ouverture_plis: Mapped[str | None] = mapped_column(String(255))
+    # Text, pas VARCHAR(255) : meme champ que Procurement.lieu_ouverture_plis,
+    # confirme jusqu'a 507 caracteres reels cote Procurement (test PostgreSQL
+    # reel) — non encore peuple par extraction/fields.py, mais la meme donnee
+    # source poserait le meme probleme le jour ou il le sera.
+    lieu_ouverture_plis: Mapped[str | None] = mapped_column(Text)
     justification_choix: Mapped[str | None] = mapped_column(Text)
 
     # PV riche uniquement (§3.2) — extraits par decision explicite du plan

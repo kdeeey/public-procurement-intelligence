@@ -58,3 +58,31 @@ def test_split_groupement_marker_avoids_internal_et_trap():
 def test_split_groupement_single_member_when_unsplittable():
     # Aucun marqueur, aucun "ET" a l'interieur -> un seul membre, texte garde.
     assert split_groupement("Groupement ABC INGENIERIE") == ["ABC INGENIERIE"]
+
+
+def test_get_or_create_company_rejects_implausibly_long_names(tmp_path):
+    # doc cb2aaa333d59...: concurrent_retenu extrait a tort une description
+    # de lot + une phrase de justification (393 caracteres), aucun nom
+    # d'entreprise reel present. Confirme par un test reel contre PostgreSQL
+    # (SQLite n'aurait jamais leve l'erreur de largeur VARCHAR qui a revele
+    # le probleme) que stocker ceci comme Company fabriquerait une entite
+    # qui n'existe pas.
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+    from database.crud.companies import get_or_create_company
+    from database.models import Base, Company
+
+    engine = create_engine(f"sqlite:///{tmp_path}/t.db")
+    Base.metadata.create_all(engine)
+    session = sessionmaker(bind=engine)()
+
+    noise = ("Lot no1 : Travaux d'aménagement des voies et rues de Ia ville de "
+             "Marrakech en pavé autobloquaqt et carreaux Iot no1 Son offre est "
+             "l'offre économiquement la plus avantageuse conformément à l'article "
+             "43 et l'article 2 du règlement de la consultation du décret "
+             "n'2-22-43L du 08/03/2O23 relatif aux marchés public. Lot no2 : "
+             "Travaux d'aménagement des voies et rues de la ville de Marrakech en pavé")
+    assert len(noise) > 250
+    assert get_or_create_company(session, noise) is None
+    assert session.query(Company).count() == 0
+    session.close()
