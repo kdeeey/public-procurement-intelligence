@@ -60,6 +60,16 @@ def test_split_groupement_single_member_when_unsplittable():
     assert split_groupement("Groupement ABC INGENIERIE") == ["ABC INGENIERIE"]
 
 
+def _fresh_session(tmp_path):
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+    from database.models import Base
+
+    engine = create_engine(f"sqlite:///{tmp_path}/t.db")
+    Base.metadata.create_all(engine)
+    return sessionmaker(bind=engine)()
+
+
 def test_get_or_create_company_rejects_implausibly_long_names(tmp_path):
     # doc cb2aaa333d59...: concurrent_retenu extrait a tort une description
     # de lot + une phrase de justification (393 caracteres), aucun nom
@@ -67,15 +77,10 @@ def test_get_or_create_company_rejects_implausibly_long_names(tmp_path):
     # (SQLite n'aurait jamais leve l'erreur de largeur VARCHAR qui a revele
     # le probleme) que stocker ceci comme Company fabriquerait une entite
     # qui n'existe pas.
-    from sqlalchemy import create_engine
-    from sqlalchemy.orm import sessionmaker
     from database.crud.companies import get_or_create_company
-    from database.models import Base, Company
+    from database.models import Company
 
-    engine = create_engine(f"sqlite:///{tmp_path}/t.db")
-    Base.metadata.create_all(engine)
-    session = sessionmaker(bind=engine)()
-
+    session = _fresh_session(tmp_path)
     noise = ("Lot no1 : Travaux d'aménagement des voies et rues de Ia ville de "
              "Marrakech en pavé autobloquaqt et carreaux Iot no1 Son offre est "
              "l'offre économiquement la plus avantageuse conformément à l'article "
@@ -86,3 +91,37 @@ def test_get_or_create_company_rejects_implausibly_long_names(tmp_path):
     assert get_or_create_company(session, noise) is None
     assert session.query(Company).count() == 0
     session.close()
+
+
+def test_looks_implausible_rejects_leading_noise_word():
+    # doc 3d46704d054d...: la phrase entiere devient le "nom" faute de
+    # mieux, aucune entreprise n'est meme presente dans cette valeur.
+    from database.crud.companies import _looks_implausible
+    assert _looks_implausible("JUSTIFICATION DU CHOIX DE L ATTRIBUTAIRE")
+    assert _looks_implausible("CONCURRENT RETENU MONTANT DE L ACTE D ENGAG")
+
+
+def test_looks_implausible_rejects_long_name_without_structure_token():
+    # Mesure sur la tranche 50-90 caracteres de la table Company reelle :
+    # aucun nom d'entreprise reel trouve au-dessus de ce seuil sans SARL/
+    # STE/SOCIETE/SA/SNC/GROUPEMENT.
+    from database.crud.companies import _looks_implausible
+    assert _looks_implausible(
+        "LE CONCURRENT A PRESENTE L OFFRE LA PLUS AVANTAGEUSE")
+
+
+def test_looks_implausible_accepts_short_names_without_structure_token():
+    # De vrais noms courts sans forme juridique existent dans le corpus
+    # (TECTRA, IBECOM...) — le filtre ne doit pas les rejeter.
+    from database.crud.companies import _looks_implausible
+    assert not _looks_implausible("TECTRA")
+    assert not _looks_implausible("ENTREPRISE OUENZAR")
+    assert not _looks_implausible("CENTRALE MAROCAINE D ASSURANCES")
+
+
+def test_looks_implausible_accepts_long_name_with_structure_token():
+    # Une longue raison sociale reelle avec un token de structure ne doit
+    # pas etre rejetee par le seul critere de longueur.
+    from database.crud.companies import _looks_implausible
+    assert not _looks_implausible(
+        "STE LABORATOIRE D ETUDES ET D ESSAIS TECHNIQUES ET INDUSTRIELS SARL")

@@ -65,9 +65,56 @@ database/
 Procurement : 1750 insérés, 0 sans refConsultation
 Document    : 400 lignes manifeste -> 390 lignes Document (9 doc_id dupliqués
               dans le manifeste, upsert géré correctement) -> 390/390 RESOLVED
-Award       : 454 insérés, 0 orphelins (no_matching_document), 318 liens Company
+Award       : 454 insérés, 0 orphelins (no_matching_document), 238 liens Company
+Company     : 222 entités distinctes
 ```
 
-Testé avec SQLite (Docker/Postgres indisponible dans l'environnement de
-développement au moment de l'écriture) — le schéma cible reste PostgreSQL
-(`ARRAY` réel, pas la variante JSON de secours).
+Vérifié une première fois contre PostgreSQL réel (`docker compose up -d
+postgres`, pas seulement SQLite) — 3 écarts trouvés et corrigés, voir le
+commit `fix(database): corrige 3 ecarts trouves en testant reellement
+contre PostgreSQL` : driver `psycopg2-binary` jamais installé dans cet
+environnement, deux colonnes `VARCHAR` trop étroites pour des valeurs
+réelles (`lieu_execution` jusqu'à 925 caractères, `lieu_ouverture_plis`
+jusqu'à 507 — SQLite n'applique aucune limite de longueur `VARCHAR`, ces
+dépassements y étaient invisibles), et un premier filtre de plausibilité
+sur `Company` (rejet des noms > 250 caractères).
+
+## Filtre de plausibilité sur `Company` — mesuré, pas supposé fonctionner
+
+Après le premier filtre (rejet des noms > 250 caractères), une mesure a
+montré que le bruit d'extraction plus court passait toujours largement :
+sur 292 `Company`, 28 % (83) étaient du bruit pur (aucun nom d'entreprise
+présent — ex. `"L'offre économiquement la plus avantageuse."`) et 10 % (28)
+un nom réel noyé dans du texte parasite (ex. `"Attributaire : * Société
+ISOLAB SARL"`) — 38 % de la table affectée d'une façon ou d'une autre.
+
+Deuxième filtre ajouté dans `get_or_create_company()`
+(`database/crud/companies.py`), deux règles mesurées sur le corpus réel,
+pas devinées :
+
+1. Aucun token de forme juridique (`SARL`/`STE`/`SOCIETE`/`SA`/`SNC`/
+   `GROUPEMENT`) **et** longueur ≥ 50 caractères. Seuil choisi par
+   inspection : sur la tranche 50-90 caractères des noms sans forme
+   juridique, 0 nom d'entreprise réel trouvé (30 valeurs inspectées,
+   toutes du bruit) ; la tranche 30-50 est mélangée (de vrais noms comme
+   `"CENTRALE MAROCAINE D'ASSURANCES"`, 31 caractères, y coexistent avec
+   du bruit), donc non filtrée par ce critère.
+2. Premier mot du nom normalisé ∈ {JUSTIFICATION, MONTANT, MONTANTS,
+   ATTRIBUTAIRE, CONCURRENT, CONCURRENTS} — position significative : ces
+   mots ailleurs dans la chaîne ne déclenchent rien.
+
+**Résultat, mesuré à nouveau après coup (même méthode qu'avant le
+filtre), pas supposé** :
+
+| | avant (292 Company) | après (222 Company) |
+|---|---:|---:|
+| bruit pur | 28 % (83) | 14 % (32) |
+| contaminé | 10 % (28) | 6 % (14) |
+| propre | 62 % (181) | 79 % (176) |
+
+Bruit combiné 38 % → 20 %, à peu près réduit de moitié. **Taux d'erreur
+résiduel connu et non nul** : 32 valeurs de bruit pur et 14 contaminées
+passent toujours (ex. `"GROUP SADE-CGTH / CTHM - Offre base"`, `"CLEAN
+TECH - Offre de base"` — un token de structure absent mais sous le seuil
+de 50 caractères). Le filtre n'a jamais visé l'exhaustivité — voir
+`tests/test_normalization.py` pour les cas couverts explicitement.

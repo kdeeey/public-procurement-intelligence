@@ -26,19 +26,61 @@ from database.normalization import normalize_company_name, split_groupement
 # not SQLite, which enforces no VARCHAR length at all).
 MAX_PLAUSIBLE_NAME_LENGTH = 250
 
+# Deuxieme filtre, plus fin que la seule longueur : mesure sur les 292
+# Company que produisait le pipeline avant ce filtre. 28% (83/292) etaient
+# du bruit pur, 10% (28/292) un nom reel noye dans du texte parasite — le
+# plafond de 250 caracteres ne rattrapait que les 2 cas les plus extremes
+# (254 et 393 caracteres), pas ce bruit plus court.
+#
+# 1. Aucun token de forme juridique/structure ET longueur suspecte pour un
+#    nom propre. Mesure sur les 246 Company sans token de structure :
+#    inspection manuelle de la tranche 50-90 caracteres (30 valeurs) n'a
+#    trouve AUCUN nom d'entreprise reel, seulement des fragments de phrase
+#    ("le concurrent a presente l'offre la plus avantageuse", "sans reserve
+#    : TRAFFITEC- RIFL BIOMETRICS- RPR- ES DATA SERVICES"...). La tranche
+#    30-50 est melangee (vrais noms sans forme juridique comme "CENTRALE
+#    MAROCAINE D'ASSURANCES", 31 caracteres, y coexistent avec du bruit) —
+#    50 caracteres est le seuil ou le bruit devient exclusif dans
+#    l'echantillon inspecte, pas une valeur choisie a priori.
+# 2. Premier mot du nom normalise = un mot de tete de phrase extraite,
+#    jamais le debut d'un nom d'entreprise reel — la position compte : ces
+#    memes mots ailleurs dans la chaine ne declenchent rien (une entreprise
+#    peut legitimement contenir "GESTION" ou un mot proche sans que ce soit
+#    le premier token).
+STRUCTURE_TOKENS = {"SARL", "STE", "SOCIETE", "SA", "SNC", "GROUPEMENT"}
+SUSPICIOUS_LENGTH_WITHOUT_STRUCTURE = 50
+NOISE_LEADING_WORDS = {"JUSTIFICATION", "MONTANT", "MONTANTS", "ATTRIBUTAIRE",
+                       "CONCURRENT", "CONCURRENTS"}
+
+
+def _looks_implausible(normalized: str) -> bool:
+    words = normalized.split()
+    if not words:
+        return True
+    if words[0] in NOISE_LEADING_WORDS:
+        return True
+    has_structure = any(w in STRUCTURE_TOKENS for w in words)
+    if not has_structure and len(normalized) >= SUSPICIOUS_LENGTH_WITHOUT_STRUCTURE:
+        return True
+    return False
+
 
 def get_or_create_company(session: Session, raw_name: str) -> Company | None:
     """One raw company name -> its Company row, creating it if new.
 
     None when `raw_name` normalizes to an empty string (pure punctuation/
-    noise slipping through from an unvalidated field like liste_concurrents)
-    OR is implausibly long for a company name (see MAX_PLAUSIBLE_NAME_LENGTH)
-    — never silently create a blank or fabricated Company.
+    noise slipping through from an unvalidated field like liste_concurrents),
+    is implausibly long (MAX_PLAUSIBLE_NAME_LENGTH), or fails the plausibility
+    check in _looks_implausible() — never silently create a blank or
+    fabricated Company. This filter is measured, not exhaustive (see the
+    comment above _looks_implausible and database/README.md for the
+    residual error rate after applying it) — some noise will still pass,
+    and a small number of real names may be rejected.
     """
     if len(raw_name) > MAX_PLAUSIBLE_NAME_LENGTH:
         return None
     normalized = normalize_company_name(raw_name)
-    if not normalized:
+    if not normalized or _looks_implausible(normalized):
         return None
 
     existing = session.query(Company).filter_by(normalized_name=normalized).one_or_none()
