@@ -54,7 +54,7 @@ def _clean_leading_parenthetical_col(col):
     return F.trim(F.regexp_replace(col, r"^\([^)]*\)\s*", ""))
 
 
-def _is_implausible_name(name: str | None) -> bool:
+def _is_implausible_name(name: str | None, raw: str | None) -> bool:
     # `name is None` (no company on this row) is left to the caller's
     # existing company_id-null filter — but an empty STRING (a company
     # whose cleaned name is "", e.g. "(PAR TIRAGE AU SORT)" after
@@ -65,14 +65,22 @@ def _is_implausible_name(name: str | None) -> bool:
     # never let it be called. Confirmed via company_id=53: it survived
     # collect_implausible_company_ids() silently (absent from the "Company
     # rejetees" diagnostic list) despite its cleaned name being "".
-    return name is None or _looks_implausible(name)
+    #
+    # `raw` (company_display_name, pre-normalization) is passed through so
+    # the short-name-without-legal-marker rule (database/crud/companies.py
+    # ::_looks_implausible's `raw` argument) can check for SARL/STE/SOCIETE
+    # in the ORIGINAL text — normalize_company_name() already strips a
+    # simple leading/trailing marker before this UDF ever sees `name`
+    # ("STE SEN SARL" -> "SEN"), so checking the marker against `name`
+    # alone would reject real short-acronym companies like SEN/TCN.
+    return name is None or _looks_implausible(name, raw=raw)
 
 
-def _is_implausible_col(col):
+def _is_implausible_col(name_col, raw_col):
     # F.udf() needs an active SparkContext — this module is imported before
     # get_spark_session() runs in main(), so a module-level call fails with
     # SESSION_OR_CONTEXT_NOT_EXISTS. Built lazily here instead.
-    return F.udf(_is_implausible_name, "boolean")(col)
+    return F.udf(_is_implausible_name, "boolean")(name_col, raw_col)
 
 
 def _flag_implausible_companies(fact):
@@ -106,7 +114,8 @@ def _flag_implausible_companies(fact):
         "company_normalized_name",
         _clean_leading_parenthetical_col(F.col("company_normalized_name")))
     return fact.withColumn(
-        "_implausible", _is_implausible_col(F.col("company_normalized_name")))
+        "_implausible",
+        _is_implausible_col(F.col("company_normalized_name"), F.col("company_display_name")))
 
 
 def _drop_implausible_companies(fact, excluded_company_ids: list[int]):

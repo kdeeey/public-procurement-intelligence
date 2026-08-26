@@ -212,6 +212,72 @@ pour les marchés déjà attribués).
   validation ci-dessous, `company_id=53` maintenant dans la liste des
   rejetées, plus de nom commençant par `(` dans `company_stats_global`).
 
+  **Troisième vague de correctifs, sur les 217 restantes** : inspection
+  manuelle complète (pas un échantillon) des 217 `company_normalized_name`,
+  4 catégories de bruit non couvertes par les règles précédentes, ajoutées
+  à `_looks_implausible()` (`database/crud/companies.py`) :
+  1. `"NEANT"`/`"NÉANT"` ("- Néant", "du marché : Néant.") — mot de
+     formulaire pour "champ vide", jamais en position de tête (contrairement
+     à `NOISE_LEADING_WORDS`) donc vérifié n'importe où dans le nom.
+  2. Un pattern de date lu comme `concurrent_retenu` ("31/12/2025",
+     doc `1a2b0ab1...`) — jamais anticipé avant cette inspection. Réutilise
+     le même regex que `ocr/matching.py::date_variants()` plutôt que d'en
+     écrire un nouveau (`_looks_like_date()`).
+  3. Aucune lettre du tout (`"-"`, `"01"`, `"1/2"`, `"\ 60"`) — un nom
+     d'entreprise contient toujours au moins une lettre.
+  4. Fragments à 1-2 lettres réelles sans marqueur de forme juridique dans
+     le texte **brut** (`"AN"`, `"CT"`, `"TF"`, lettres isolées `"S"`/`"E"`/
+     `"Y"`, et par extension `"^LZ"`/`"U 0 E"`/`"__ U"` une fois les
+     caractères non-alphabétiques ignorés). Compte les lettres, pas la
+     longueur totale de la chaîne — `"^LZ"` a 3 caractères mais seulement 2
+     lettres réelles.
+
+     **Vérifié contre le document source avant de trancher** — même
+     méthode que pour `"(OH TTC) COSTACOM"` — pour les 3 cas ambigus
+     (`AN`/`CT`/`TF`) : dans les 3, le texte extrait juste après
+     "Concurrent/Soumissionnaire retenu :" est soit un fragment OCR
+     illisible (watermark/tampon arabe garbled), soit une abréviation de
+     colonne de tableau (`TF` = Tranche Ferme, `TC/AN` = Tranche
+     Conditionnelle, confirmé par le doc `9ff585fd...` où `"TF: 736
+     955.00 DH"` est une ligne de tableau à côté du vrai nom
+     `"IMS TECHNOLOGY"`) — le vrai nom du vainqueur apparaît toujours
+     plusieurs lignes plus bas, dans le tableau des montants par
+     concurrent. Même défaut d'extraction que COSTACOM (le label
+     "retenu :" est immédiatement suivi d'un fragment de mise en page, pas
+     de la vraie valeur), pas trois incidents isolés — un candidat pour
+     Issue 7 si le corpus s'élargit, hors scope de ce correctif Company.
+     Cette même règle a détecté un 4ᵉ cas non identifié manuellement :
+     `"R e |-00 #|"` (doc `53b0229e...`), le même défaut d'extraction
+     confirmé par la même vérification.
+
+     Point d'attention architectural : `normalize_company_name()` retire
+     déjà un marqueur juridique simple en tête/fin AVANT que ce filtre ne
+     s'exécute (`"STE SEN SARL"` → `"SEN"`) — chercher `SARL`/`STE` dans
+     le nom déjà normalisé ne le trouve donc presque jamais pour ce cas.
+     La règle 4 revérifie le texte **brut** (`raw_name` dans
+     `get_or_create_company()`, `company_display_name` dans
+     `build_statistics.py` — les deux threadés en paramètre optionnel
+     `raw` de `_looks_implausible()`) : `"SEN"`/`"TCN"` (3 lettres) et
+     `"BIGC"`/`"SEMH"` (4 lettres) restent acceptées car leur texte brut
+     porte `STE`/`SOCIETE`/`SARL`, vérifiées explicitement, pas supposées
+     à l'abri par coïncidence de longueur.
+
+  Recompté après ce troisième correctif, pas supposé stable : **217 → 200
+  `Company`** (22 rejetées au total par la défense en profondeur — les 5
+  précédentes + 17 nouvelles — touchant 27 Award). Nouveau top-20 par
+  `total_amount_ttc` revérifié visuellement : `^LZ` (ex-#2, 37 093 666,80
+  DH) a disparu, remplacé par `EL6 INNOVATIVE BUILDING SOLUTIONS`
+  (31 524 696,30 DH) ; aucun des 17 nouveaux cas n'apparaissait en position
+  visible avant ce correctif (aucun n'était dans un top-20 précédent, sauf
+  `^LZ`). **Résidu connu, non traité par ce correctif** : `company_id=173`
+  ("POUR LE LOT N° 1 LA SOCIETE ZED S AVEC UN MONTANT...", 4 994 508 DH)
+  reste dans le top-20 — `SOCIETE` y survit en milieu de chaîne (ni
+  préfixe ni suffixe propre, donc jamais retiré par la normalisation),
+  ce qui active `has_structure=True` et contourne toutes les règles
+  conditionnées sur son absence (longueur, nombre de lettres). Même
+  catégorie que le taux résiduel ~20% déjà documenté, pas un nouvel écart
+  introduit ici.
+
   Ne jamais afficher un classement `company_stats_global`/
   `company_stats_by_acheteur` sans vérification visuelle des premières
   lignes — le filtre reste mesuré, pas exhaustif (voir le taux résiduel
@@ -312,5 +378,61 @@ ALHAYAT/BIRG (collision "avantageuse" potentielle, verifiees conservees) :
 Note sur le rang #2-#5 : `^LZ`, `AN`, `"OBSERVATIONS DU LOT N° 25-62..."`
 restent du bruit résiduel plausible-mais-pas-réel (aucun ne porte de
 token de structure ni de longueur/mot suspect couvert par les règles
-actuelles) — attendu, documenté dans le taux résiduel ~20% ci-dessus, pas
-un nouvel écart à corriger dans le cadre d'Issue 10.
+actuelles) — attendu à ce stade, documenté dans le taux résiduel ~20%
+ci-dessus. `^LZ` et `AN` sont couverts par le correctif suivant (voir
+juste ci-dessous) ; `"OBSERVATIONS DU LOT N° 25-62..."` reste résiduel.
+
+### Validation (dernier run réel, après le correctif NEANT/date/sans-lettre/fragment-court)
+
+```
+Company rejetees par le filtre de plausibilite (defense en profondeur,
+22, touchant 27 Award) — les 5 precedentes + 17 nouvelles :
+  id=6   '- NEANT'
+  id=218 'OFFRE LA PLUS AVANTAGEUSE'
+  id=106 'S'
+  id=80  '-'
+  id=78  'AN'
+  id=108 'U 0 E'
+  id=22  '31/12/2025'
+  id=90  'CT'
+  id=149 'TF'
+  id=152 '\ 60'
+  id=185 '__ U'
+  id=5   'L OFFRE ECONOMIQUEMENT LA PLUS AVANTAGEUSE'
+  id=206 'OFFRE ECONOMIQUEMENT PLUS AVANTAGEUSE'
+  id=217 'Y'
+  id=139 'E'
+  id=53  ''
+  id=76  'R E -00 #'                        <- trouve par la regle, pas dans l'inspection manuelle initiale
+  id=45  '^LZ'
+  id=48  'ECONOMIQUEMENT LA PLUS AVANTAGEUSE'
+  id=137 '1/2'
+  id=111 '01'
+  id=94  'DU MARCHE NEANT'
+
+Award distincts dans fact                     : 454 (attendu 454)
+Award distincts avec compagnie (avant filtre) : 237
+Award distincts avec compagnie (apres filtre) : 210 (attendu 210)
+Company distinctes (company_stats_global)     : 200  (217 - 17)
+Company distinctes (by_acheteur, dedup)       : 200
+Lignes market_stats                           : 454 (attendu 454)
+OK : tous les recoupements confirmes.
+
+Top 20 par total_amount_ttc (nouveau) :
+  1. COSTACOM                                        41 189 000.00
+  2. EL6 INNOVATIVE BUILDING SOLUTIONS                31 524 696.30
+  3. OBSERVATIONS DU LOT N° 25-62 TAZART - ENNAKHIL   19 435 184.64
+  4. VAROSSE                                          13 094 592.00
+  5. HOLDING AL BARAKA                                11 168 983.62
+  ...
+  17. POUR LE LOT N° 1 LA SOCIETE ZED S AVEC UN
+      MONTANT DE ... (              4 994 508.00   <- residu connu, voir note ci-dessus
+
+SEN/TCN/BIGC/SEMH (marqueur juridique dans le texte brut, verifiees conservees) :
+  id=11 STE SEN SARL -> SEN : garde
+  id=30 BIGC SARL -> BIGC   : garde
+  id=33 SOCIETE TCN -> TCN  : garde
+  id=89 SEMH               : garde
+43 tests passent (37 precedents + 6 nouveaux pour les 4 categories de
+regles ci-dessus).
+```
