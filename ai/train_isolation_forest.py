@@ -27,6 +27,35 @@ for traceability but never enter MODEL_FEATURE_COLUMNS below —
 data_dictionary.md Sec 3.6's "never merge HT/TTC" is respected by keeping
 them as fully separate columns, not by feeding both into one model.
 
+Amount-cluster redundancy fix (measured after the first trained model
+showed 171/200 companies "dominated by amount" via
+ai/risk_score.py::_compute_dominant_driver() — not guessed, correlation
+measured on the actual imputed matrix): `total_amount_ttc`,
+`average_amount_ttc` and `market_share_global_ttc` are not 3 independent
+signals, they are ~1 signal counted 3 times —
+`market_share_global_ttc` correlates with `total_amount_ttc` at r=1.000
+exactly (it IS `total_amount_ttc` divided by a constant, the corpus
+total, so a pure linear rescale — zero additional information for a
+tree-based model), and `average_amount_ttc` correlates at r=0.996 (95%
+of companies with `has_ttc_data` have exactly 1 award, so total ==
+average for almost all of them). Isolation Forest draws a random feature
+subset per split (`max_features` ~ sqrt(11 columns) by default) —
+tripling the presence of one signal in the pool mechanically triples its
+chance of being selected, independent of its real importance. Only
+`total_amount_ttc` stays a MODEL input now (the most interpretable of
+the three); `average_amount_ttc` and `market_share_global_ttc` still get
+computed and kept in company_features.parquet for REPORTING (e.g. the
+composite score's `concentration` red flag still reads
+`market_share_global_ttc`, and this training script still prints it for
+context) — they are never re-added to MODEL_FEATURE_COLUMNS. `has_ttc_data`
+stays a model input: measured correlation with the amount trio is only
+~0.26, not the redundancy driver (a single-feature ablation on it
+earlier suggested otherwise, but that was an off-manifold artifact —
+`has_ttc_data=0` never co-occurs with an extreme real amount in the
+actual data, only with the imputed median, so ablating it alone while
+keeping an extreme amount value creates a combination the model never
+saw during training).
+
     python -m ai.train_isolation_forest
 """
 
@@ -49,7 +78,17 @@ FEATURE_COLUMNS_PATH = REPO / "ai/models/feature_columns.json"
 
 # TTC seulement (voir docstring) — jamais HT, jamais les deux fusionnes en
 # une colonne unique.
-AMOUNT_COLUMNS_TTC = ["total_amount_ttc", "average_amount_ttc", "market_share_global_ttc"]
+#
+# UNE seule colonne montant en entree du modele (total_amount_ttc) —
+# average_amount_ttc et market_share_global_ttc sont volontairement
+# EXCLUES d'ici, voir la docstring du module pour la mesure de
+# redondance (r=0.996 et r=1.000). Elles restent calculees dans
+# company_features.parquet pour le REPORTING (ex: le red flag
+# "concentration" du score composite, ai/scoring.py, continue de lire
+# market_share_global_ttc — deux usages differents, ne pas les confondre :
+# colonne de reporting != colonne d'entree du modele).
+AMOUNT_COLUMNS_TTC = ["total_amount_ttc"]
+REPORTING_ONLY_AMOUNT_COLUMNS = ["average_amount_ttc", "market_share_global_ttc"]
 TREND_COLUMNS = ["single_bidder_rate_trend_slope", "number_of_awards_trend_slope"]
 NON_IMPUTED_COLUMNS = ["number_of_awards", "single_bidder_rate", "groupement_rate",
                        "concurrents_ecartes_rate"]
@@ -132,7 +171,9 @@ def main() -> int:
 
     matrix["anomaly_score"] = scores
     matrix["is_anomaly"] = is_anomaly
-    result = matrix.merge(features_pdf[["company_id", "company_normalized_name"]], on="company_id")
+    result = matrix.merge(
+        features_pdf[["company_id", "company_normalized_name"] + REPORTING_ONLY_AMOUNT_COLUMNS],
+        on="company_id")
 
     n_flagged = int(is_anomaly.sum())
     print(f"\nCompany signalees anormales par Isolation Forest : {n_flagged}/{n_companies}")
