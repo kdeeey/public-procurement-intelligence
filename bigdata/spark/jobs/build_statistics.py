@@ -32,8 +32,40 @@ COMPANY_STATS_GLOBAL_PATH = REPO / "data/processed/analytics/company_stats_globa
 MARKET_STATS_PATH = REPO / "data/processed/analytics/market_stats"
 
 
+def _clean_leading_parenthetical_col(col):
+    """Strips a leading "(...)" group, native Spark regexp_replace — no UDF,
+    so no risk of the session instability documented below. Measured, not
+    guessed: found via company_stats_global's #1-by-amount row,
+    "(OH TTC) COSTACOM" — a table-header caption ("Montants des actes
+    d'engagement (OH TTC)", "en DH TTC" OCR-misread) that stayed glued to
+    the real value because extraction/fields.py's caption filter did not
+    recognize it, confirmed by the raw source: COSTACOM appears cleanly by
+    itself elsewhere in the same document's bidder lists. A second entry,
+    "(PAR TIRAGE AU SORT)", is entirely parenthetical noise (a justification
+    phrase, no company at all) — checked against all 218 names in
+    company_stats_global before applying this: only these 2 are affected,
+    no real name in the corpus starts with a parenthesis.
+
+    Historical DB rows only — the root fix lives in
+    database/normalization.py::normalize_company_name(), applied to every
+    future load; this mirrors it here so the job is correct even against a
+    PostgreSQL database not yet reloaded since that fix.
+    """
+    return F.trim(F.regexp_replace(col, r"^\([^)]*\)\s*", ""))
+
+
 def _is_implausible_name(name: str | None) -> bool:
-    return bool(name) and _looks_implausible(name)
+    # `name is None` (no company on this row) is left to the caller's
+    # existing company_id-null filter — but an empty STRING (a company
+    # whose cleaned name is "", e.g. "(PAR TIRAGE AU SORT)" after
+    # _clean_leading_parenthetical_col strips it entirely) must still be
+    # flagged. A `bool(name) and ...` guard here previously short-circuited
+    # on "" before _looks_implausible("") could run — _looks_implausible
+    # itself already returns True for an empty word list, the guard just
+    # never let it be called. Confirmed via company_id=53: it survived
+    # collect_implausible_company_ids() silently (absent from the "Company
+    # rejetees" diagnostic list) despite its cleaned name being "".
+    return name is None or _looks_implausible(name)
 
 
 def _is_implausible_col(col):
@@ -70,6 +102,9 @@ def _flag_implausible_companies(fact):
     here, not the UDF's implementation — one flag column, cached once by
     the caller (see main()), read by every downstream use, is the fix.
     """
+    fact = fact.withColumn(
+        "company_normalized_name",
+        _clean_leading_parenthetical_col(F.col("company_normalized_name")))
     return fact.withColumn(
         "_implausible", _is_implausible_col(F.col("company_normalized_name")))
 
@@ -84,15 +119,21 @@ def _drop_implausible_companies(fact, excluded_company_ids: list[int]):
     UDF here on purpose — see collect_implausible_company_ids() and main()
     for why: a pure `isin()` Spark expression needs no Python worker at
     all, so this function carries zero risk of the UDF-session instability
-    documented there, regardless of how many times it is called."""
-    if not excluded_company_ids:
-        return fact
-    is_excluded = F.col("company_id").isin(excluded_company_ids)
+    documented there, regardless of how many times it is called.
+
+    Also cleans a leading "(...)" group off every surviving
+    company_normalized_name (see _clean_leading_parenthetical_col) — the
+    same transform collect_implausible_company_ids() already applied
+    before deciding what to exclude, reapplied here so the value actually
+    used for aggregation is clean, not just the value used to decide."""
+    is_excluded = (F.col("company_id").isin(excluded_company_ids)
+                  if excluded_company_ids else F.lit(False))
     return (
         fact
         .withColumn("company_id", F.when(is_excluded, None).otherwise(F.col("company_id")))
         .withColumn("company_normalized_name",
-                    F.when(is_excluded, None).otherwise(F.col("company_normalized_name")))
+                    F.when(is_excluded, None).otherwise(
+                        _clean_leading_parenthetical_col(F.col("company_normalized_name"))))
         .withColumn("company_display_name",
                     F.when(is_excluded, None).otherwise(F.col("company_display_name")))
     )

@@ -43,6 +43,16 @@ MARKER_SPLIT_RE = re.compile(
 
 GROUPEMENT_PREFIX_RE = re.compile(r"^\s*-?\s*GROUPEMENT\s*(?:ENTRE)?\s*", re.IGNORECASE)
 
+# Un groupe parenthese en tete n'est jamais une entreprise reelle dans ce
+# corpus — confirme sur 2 cas mesures dans company_stats_global (Issue 10) :
+# "(OH TTC) COSTACOM" (un intitule de colonne de tableau, "en DH TTC"
+# mal lu par l'OCR en "OH TTC", reste colle a la vraie valeur suivante
+# faute d'avoir ete reconnu comme legende par extraction/fields.py) et
+# "(PAR TIRAGE AU SORT)" (une justification de choix entiere, aucune
+# entreprise). Retirer ce groupe ne risque jamais de couper un vrai nom :
+# aucune raison sociale marocaine observee ne commence par une parenthese.
+LEADING_PARENTHETICAL_RE = re.compile(r"^\([^)]*\)\s*")
+
 
 def _fold_accents(s: str) -> str:
     return "".join(c for c in unicodedata.normalize("NFKD", s)
@@ -52,12 +62,14 @@ def _fold_accents(s: str) -> str:
 def normalize_company_name(raw: str) -> str:
     """Cle de deduplication pour Company.normalized_name.
 
-    Ordre : casse+accents -> ponctuation -> prefixe de tete (un seul) ->
-    suffixe juridique final (un seul, le plus long en premier).
+    Ordre : casse+accents -> groupe parenthese en tete -> ponctuation ->
+    prefixe de tete (un seul) -> suffixe juridique final (un seul, le plus
+    long en premier).
     """
     if not raw:
         return ""
     s = _fold_accents(raw.upper())
+    s = LEADING_PARENTHETICAL_RE.sub("", s).strip()
     s = re.sub(r"[.,;:'\"‘’“”«»|]", " ", s)
     s = re.sub(r"\s+", " ", s).strip()
     for prefix in sorted(LEADING_PREFIXES, key=len, reverse=True):

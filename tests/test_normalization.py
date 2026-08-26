@@ -16,6 +16,22 @@ sys.path.insert(0, str(REPO))
 from database.normalization import normalize_company_name, split_groupement  # noqa: E402
 
 
+def test_normalize_strips_leading_parenthetical_table_caption():
+    # company_stats_global (Issue 10), rang #1 par montant avant ce
+    # correctif : "(OH TTC)" est une legende de colonne de tableau
+    # ("Montants des actes d'engagement (OH TTC)", "en DH TTC" mal lu par
+    # l'OCR) restee collee a la vraie valeur — confirme par le document
+    # source, ou COSTACOM apparait seul dans les listes de concurrents.
+    assert normalize_company_name("(OH TTC) COSTACOM") == "COSTACOM"
+
+
+def test_normalize_leading_parenthetical_noise_becomes_empty():
+    # Toute la "valeur" est une parenthese de justification, aucune
+    # entreprise — doit devenir une chaine vide (rejetee en amont par
+    # get_or_create_company), jamais un fragment de parenthese orpheline.
+    assert normalize_company_name("(PAR TIRAGE AU SORT)") == ""
+
+
 def test_normalize_merges_case_and_accent_variants():
     assert (normalize_company_name("STE TP HORIZON SARL")
             == normalize_company_name("Sté TP HORIZON SARL"))
