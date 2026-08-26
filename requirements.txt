@@ -30,6 +30,7 @@ minio
 
 # Machine Learning
 scikit-learn
+joblib
 
 # Backend
 fastapi

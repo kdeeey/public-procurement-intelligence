@@ -78,6 +78,10 @@ def build_fact_table(spark, database_url: str | None = None):
         # verite terrain (Issue 7), mesure separement au niveau du job de
         # statistiques plutot que suppose fiable ici.
         awards.liste_concurrents,
+        # Ajoute pour Issue 11 (red flag "exclusion de concurrents",
+        # docs/ideas.md Sec 2.6) — meme statut non valide que
+        # liste_concurrents ci-dessus, mesure au niveau du job de features.
+        awards.concurrents_ecartes,
         companies.id.alias("company_id"),
         # Deja normalise en amont (database/normalization.py, Issue 8) —
         # lu tel quel ici, jamais renormalise.
