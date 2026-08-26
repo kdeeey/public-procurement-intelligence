@@ -42,7 +42,42 @@
    (`$env:HADOOP_HOME = "..."`) pour définir ces variables avant de lancer
    un job Spark.
 
-4. **Un seul appel UDF par SparkSession, sur cette machine** (trouvé en
+4. **`postgres` (conteneur) vs `localhost` (hôte) — une seule règle, écrite
+   ici, pas une substitution ad hoc par script.** `.env` contient
+   `DATABASE_URL=postgresql://user:password@postgres:5432/procurement_db`
+   — le hostname `postgres` n'est résolvable QUE depuis le réseau Docker
+   interne (`api`/`dashboard` le reçoivent via `env_file: .env` dans
+   `docker-compose.yml`, aucun `load_dotenv()` nécessaire côté conteneur).
+
+   **Aucun script exécuté depuis l'hôte** — `scripts/load_database.py`,
+   `bigdata/spark/jobs/*.py`, DBCode — **ne doit lire `.env` directement.**
+   Ni `database/crud/session.py::get_engine()` ni
+   `bigdata/spark/session.py::jdbc_url_and_properties()` n'appellent
+   `load_dotenv()` : les deux font `os.getenv("DATABASE_URL", DEFAULT)`,
+   et comme `DATABASE_URL` n'est jamais posé dans le shell hôte, ça retombe
+   sur le fallback déjà codé en dur dans chaque fichier —
+   `DEFAULT_DATABASE_URL = "postgresql://user:password@localhost:5432/procurement_db"`
+   (`database/crud/session.py:11`, `bigdata/spark/session.py:37`). C'est
+   ce fallback, pas `.env`, qui a fait fonctionner tous les chargements et
+   jobs Spark de cette machine jusqu'ici — jamais documenté explicitement
+   avant ce paragraphe, ce qui en faisait une coïncidence silencieuse
+   plutôt qu'une décision.
+
+   **Règle** : `.env` reste tel quel (`postgres`, usage Docker uniquement,
+   ne pas le modifier pour "corriger" ce cas). Tout script/outil lancé
+   depuis l'hôte contre le conteneur PostgreSQL persistant doit soit (a)
+   ne rien passer et laisser `DEFAULT_DATABASE_URL` (`localhost`)
+   s'appliquer — le cas par défaut, déjà correct — soit (b) passer
+   explicitement `--database-url postgresql://user:password@localhost:5432/procurement_db`
+   quand un remplacement est nécessaire (ex. pointer vers une base de test
+   différente). Ne jamais faire `export $(cat .env)`/charger `.env` dans
+   un shell hôte pour lancer un de ces scripts — ça écraserait le fallback
+   `localhost` par le `postgres` du fichier et casserait la connexion.
+   Pour DBCode (ou tout autre client SQL sur l'hôte) : configurer la
+   connexion directement avec `localhost:5432` / `user` / `password` /
+   `procurement_db` — ne jamais pointer un outil hôte vers `.env`.
+
+5. **Un seul appel UDF par SparkSession, sur cette machine** (trouvé en
    faisant tourner `build_statistics.py`, pas supposé) : le premier appel
    UDF d'une session réussit systématiquement, tout appel UDF distinct
    suivant échoue avec un `TimeoutError` de socket côté worker Python —
