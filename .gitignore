@@ -27,8 +27,12 @@ data/processed/*
 data/samples/PVs/*
 !data/samples/PVs/manifest.jsonl
 
-# ML models (générés par l'entraînement, pas versionnés)
+# ML models (générés par l'entraînement, pas versionnés — même principe
+# que data/processed/analytics/ : régénérable de façon deterministe via
+# `python -m ai.train_isolation_forest`, random_state=42)
 ai/models/*.pkl
+ai/models/*.joblib
+ai/models/feature_columns.json
 
 # Docker
 *.log

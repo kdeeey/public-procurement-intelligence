@@ -436,3 +436,134 @@ SEN/TCN/BIGC/SEMH (marqueur juridique dans le texte brut, verifiees conservees) 
 43 tests passent (37 precedents + 6 nouveaux pour les 4 categories de
 regles ci-dessus).
 ```
+
+## Feature engineering (Issue 11) — `bigdata/spark/jobs/build_features.py`
+
+Lit `fact_award_company` + `market_stats` (Issue 9/10), reutilise le
+pipeline de filtre de plausibilite et l'agregation de montants de
+`build_statistics.py` plutot que de les reimplementer (meme contrainte a
+deux sessions Spark, un seul appel UDF pour tout le module — voir
+`collect_implausible_company_ids()`). Ecrit deux jeux de donnees :
+`company_features.parquet` (une ligne par Company, 200 lignes) et
+`company_yearly_trajectory.parquet` ({company_id, annee} → indicateurs).
+
+**`amount_variation` (écart offre retenue vs autres offres / vs
+estimation) n'est PAS une feature** — confirmé non calculable avant de
+coder, pas juste non implémenté :
+- `montant_par_concurrent`/`classement` (Award) : **0/454** peuplés,
+  jamais extraits par Issue 7 (`database/crud/awards.py` le documente
+  déjà : *"Issue 7's own report already lists these as not implemented /
+  not validated"*).
+- `estimation_dhs_ttc` pour les Procurement liés à un Award : **0/454** —
+  confirme la décision déjà actée et mesurée dans `docs/ideas.md` §2.6
+  (0/16 sur la Passe A) : l'estimation et le montant final ne coexistent
+  jamais sur un même marché sur ce portail (la page de détail d'une
+  consultation déjà attribuée n'affiche que le contexte "extrait de PV",
+  jamais celui de l'annonce d'origine). Rattrapage possible seulement via
+  une collecte au fil de l'eau, hors sprint de 15 jours (même doc).
+
+**Trou d'extraction mesuré sur le montant du vainqueur** (trouvé en
+vérifiant `amount_variation`, pas anticipé) : parmi les 211 liens (Award,
+Company) où un vainqueur est identifié — tous `statut=ATTRIBUE`, donc un
+montant *devrait* exister — **98/211 (46%) n'ont NI `montant_ht` NI
+`montant_ttc`**. Pas le cas structurel attendu (`INFRUCTUEUX` sans
+montant, déjà documenté) : un vrai trou d'extraction sur des marchés
+attribués. Conséquence directe : **92/200 Company (46%) ont un montant
+total à zéro sur les deux bases**. Traité par imputation médiane (jamais
+0, qui ressemblerait à une valeur extrême) + un flag `has_ttc_data`/
+`has_ht_data` explicite par Company, jamais silencieux — voir
+`ai/train_isolation_forest.py`. TTC est la base retenue comme signal
+principal pour le modèle (94/211 liens vs 19/211 pour HT) ; les colonnes
+HT restent dans `company_features` pour traçabilité mais n'alimentent pas
+le modèle.
+
+**`concurrents_ecartes_rate`** — un 3ᵉ finding en construisant cette
+feature : `concurrents_ecartes` (jamais validé contre une vérité terrain
+non plus) porte le même bruit d'extraction que `concurrent_retenu` avant
+Issue 8/10 (fragments de légende — *"techniques :"*, *"additifs :"*,
+*"Concurrents éliminés Motifs des éliminations détaillées"* — plutôt que
+de vrais noms). Réutilise `_looks_implausible()`/`normalize_company_name()`
+(déjà construits et réglés pour exactement ce type de bruit, pas une
+nouvelle règle) pour ne compter que les entrées plausibles : mesuré,
+215/454 awards avec une entrée non vide brute, 178/454 avec au moins un
+nom plausible.
+
+**Trajectoire temporelle — la pente de régression (2023→2024→2025) n'est
+calculable pour AUCUNE des 200 Company**, confirmé avec l'utilisateur
+après mesure, pas supposé :
+
+```
+number_of_awards par entreprise : 189/200 ont exactement 1 award, 11/200 en ont 2
+distinct annee par entreprise   : 200/200 ont TOUTE leur activite concentree sur UNE SEULE annee
+has_trend_data (>=2 points 2023-2025) : 0/200
+```
+
+Pas un bug — une limite structurelle de l'échelle du corpus : 210 liens
+(Award, Company) répartis sur ~200 entreprises distinctes (déjà
+dédupliquées par `normalize_company_name`), sur 4 années. Il n'y a pas
+assez d'historique répété par entreprise pour observer une trajectoire —
+le scénario que Fazekas/`docs/ideas.md` §2.5 anticipe (une entreprise qui
+gagne plusieurs marchés par an, sur plusieurs années) ne se présente pas
+à cette échelle d'échantillon (388 documents PV). Les colonnes
+`single_bidder_rate_trend_slope`/`number_of_awards_trend_slope` restent
+dans `company_features` (valeur `None` pour les 200 Company aujourd'hui,
+imputées à 0 + flag `has_trend_data` côté modèle) pour quand le corpus
+grossira, mais le red flag "tendance croissante" a été retiré du score
+composite (`ai/scoring.py`) — il ne s'activerait jamais, pour personne,
+tel qu'implémenté aujourd'hui.
+
+```
+Company dans la matrice de features : 200 (attendu 200)
+Award (avec compagnie) couverts      : 210 (attendu 210)
+OK : recoupement confirme contre les totaux Issue 9/10.
+
+Company avec au moins un montant TTC : 96/200
+Company avec au moins un montant HT  : 24/200
+Company SANS aucun montant (ni HT ni TTC) : 92/200
+```
+
+## Isolation Forest + score composite (Issue 11) — `ai/`
+
+`ai/train_isolation_forest.py` — pandas/scikit-learn, pas PySpark (200
+lignes, aucun besoin de parallélisation ; évite aussi entièrement le
+problème d'instabilité UDF documenté plus haut). Colonnes d'entrée du
+modèle (`ai/models/feature_columns.json`) : `number_of_awards`,
+`single_bidder_rate`, `groupement_rate`, `concurrents_ecartes_rate`,
+`total_amount_ttc`/`average_amount_ttc`/`market_share_global_ttc`
+(imputés médiane + `has_ttc_data`), les deux pentes de tendance (imputées
+à 0 + `has_trend_data` — toujours 0 aujourd'hui, voir ci-dessus). Jamais
+HT et TTC comme entrées simultanées du modèle (HT trop clairsemé —
+19/211 — pour être informatif une fois imputé).
+
+`ai/scoring.py` — score composite 0-100, **poids égaux** (décision déjà
+actée dans `docs/ideas.md`, corpus trop petit pour ré-estimer les poids
+Fazekas — axe d'amélioration futur documenté, pas fait ici). 3 red flags
+mesurés (pas 4 — le 4ᵉ, tendance, retiré ci-dessus) :
+
+| Red flag | Seuil (mesuré sur les 200 Company) |
+|---|---|
+| `single_bidder_rate >= 0.5` | bimodal : 103 à 0.0, 91 à 1.0, 6 à 0.5 |
+| `market_share_global_ttc >= 0.010952` | quartile supérieur mesuré parmi les 96/200 avec `has_ttc_data` |
+| `concurrents_ecartes_rate >= 0.5` | bimodal : 105 à 0.0, 92 à 1.0, 3 à 0.5 |
+
+Le red flag de concentration n'est évaluable que pour les 96/200 Company
+avec `has_ttc_data`. **Décision confirmée avec l'utilisateur** : ne
+jamais traiter "non évaluable" comme "non déclenché" (ça plafonnerait
+mécaniquement le score des 104 Company sans donnée TTC — un biais, pas un
+vrai signal de risque plus faible). Le score est plutôt **rescalé sur le
+nombre de red flags réellement évaluables** pour cette entreprise (2 au
+lieu de 3 quand `has_ttc_data` est faux), avec un flag explicite
+`partially_evaluated` — même traitement que le montant manquant (flag
+explicite, jamais une valeur silencieuse).
+
+```
+Company evaluees partiellement (2/3 red flags, pas de donnee TTC) : 104/200
+Company evaluees completement (3/3 red flags)                    : 96/200
+```
+
+Comme pour tout classement `company_stats_*` : ~20% de bruit résiduel
+dans `Company` peut apparaître en tête du score composite (un nom de
+bruit avec `single_bidder_rate=1.0` et pas de montant ressemble à un
+profil "à risque" alors que ce n'est pas une entreprise) — vérifier le
+nom avant toute interprétation, jamais présenter un score élevé comme
+une conclusion en soi.
