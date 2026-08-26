@@ -1,0 +1,161 @@
+"""
+Tests for database/normalization.py (Issue 8).
+
+Every case here traces back to a real string from data/processed/extracted/
+or an explicit requirement raised during the Issue 8 design discussion.
+"""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+REPO = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(REPO))
+
+from database.normalization import normalize_company_name, split_groupement  # noqa: E402
+
+
+def test_normalize_strips_leading_parenthetical_table_caption():
+    # company_stats_global (Issue 10), rang #1 par montant avant ce
+    # correctif : "(OH TTC)" est une legende de colonne de tableau
+    # ("Montants des actes d'engagement (OH TTC)", "en DH TTC" mal lu par
+    # l'OCR) restee collee a la vraie valeur — confirme par le document
+    # source, ou COSTACOM apparait seul dans les listes de concurrents.
+    assert normalize_company_name("(OH TTC) COSTACOM") == "COSTACOM"
+
+
+def test_normalize_leading_parenthetical_noise_becomes_empty():
+    # Toute la "valeur" est une parenthese de justification, aucune
+    # entreprise — doit devenir une chaine vide (rejetee en amont par
+    # get_or_create_company), jamais un fragment de parenthese orpheline.
+    assert normalize_company_name("(PAR TIRAGE AU SORT)") == ""
+
+
+def test_normalize_merges_case_and_accent_variants():
+    assert (normalize_company_name("STE TP HORIZON SARL")
+            == normalize_company_name("Sté TP HORIZON SARL"))
+
+
+def test_normalize_merges_prefix_and_suffix_variants():
+    assert (normalize_company_name("La Société BENFORD SARL AU")
+            == normalize_company_name("BENFORD SARL AU"))
+
+
+def test_normalize_does_not_merge_different_companies_sharing_a_word():
+    # 3 vraies entreprises distinctes du corpus, toutes contenant "MAROCAINE"
+    names = ["STE MAROCAINE DES", "CENTRALE MAROCAINE D'ASSURANCES",
+             "LA MAROCAINE D'ASSAINISSEMENT ET"]
+    assert len({normalize_company_name(n) for n in names}) == 3
+
+
+def test_normalize_does_not_correct_ocr_character_errors():
+    # doc aabc5317...: erreur OCR confirmee (S/T), pas une variante de forme
+    assert normalize_company_name("SIWERGY MAROC") != normalize_company_name("STWERGY MAROC")
+
+
+def test_split_groupement_two_members_with_legal_suffixes():
+    members = split_groupement("Groupement ART STAM SARL AU et TECH-LUX SARL AU")
+    assert members == ["ART STAM SARL AU", "TECH-LUX SARL AU"]
+    assert [normalize_company_name(m) for m in members] == ["ART STAM", "TECH-LUX"]
+
+
+def test_split_groupement_marker_avoids_internal_et_trap():
+    # doc 03d5069b...: "D'ESSAIS ET ETUDES" contient un ET interne au nom;
+    # un split naif sur ET seul le couperait a tort.
+    text = ("-GROUPEMENT entre la Société DANY D'ESSAIS ET ETUDES SARL, Tanger "
+            "et la Société Solutions Professionnelles Génie Civil S.A.R.L AU, Beni Mellal ;")
+    members = split_groupement(text)
+    assert len(members) == 2
+    normalized = [normalize_company_name(m) for m in members]
+    assert normalized == ["DANY D ESSAIS ET ETUDES", "SOLUTIONS PROFESSIONNELLES GENIE CIVIL"]
+
+
+def test_split_groupement_single_member_when_unsplittable():
+    # Aucun marqueur, aucun "ET" a l'interieur -> un seul membre, texte garde.
+    assert split_groupement("Groupement ABC INGENIERIE") == ["ABC INGENIERIE"]
+
+
+def _fresh_session(tmp_path):
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+    from database.models import Base
+
+    engine = create_engine(f"sqlite:///{tmp_path}/t.db")
+    Base.metadata.create_all(engine)
+    return sessionmaker(bind=engine)()
+
+
+def test_get_or_create_company_rejects_implausibly_long_names(tmp_path):
+    # doc cb2aaa333d59...: concurrent_retenu extrait a tort une description
+    # de lot + une phrase de justification (393 caracteres), aucun nom
+    # d'entreprise reel present. Confirme par un test reel contre PostgreSQL
+    # (SQLite n'aurait jamais leve l'erreur de largeur VARCHAR qui a revele
+    # le probleme) que stocker ceci comme Company fabriquerait une entite
+    # qui n'existe pas.
+    from database.crud.companies import get_or_create_company
+    from database.models import Company
+
+    session = _fresh_session(tmp_path)
+    noise = ("Lot no1 : Travaux d'aménagement des voies et rues de Ia ville de "
+             "Marrakech en pavé autobloquaqt et carreaux Iot no1 Son offre est "
+             "l'offre économiquement la plus avantageuse conformément à l'article "
+             "43 et l'article 2 du règlement de la consultation du décret "
+             "n'2-22-43L du 08/03/2O23 relatif aux marchés public. Lot no2 : "
+             "Travaux d'aménagement des voies et rues de la ville de Marrakech en pavé")
+    assert len(noise) > 250
+    assert get_or_create_company(session, noise) is None
+    assert session.query(Company).count() == 0
+    session.close()
+
+
+def test_looks_implausible_rejects_leading_noise_word():
+    # doc 3d46704d054d...: la phrase entiere devient le "nom" faute de
+    # mieux, aucune entreprise n'est meme presente dans cette valeur.
+    from database.crud.companies import _looks_implausible
+    assert _looks_implausible("JUSTIFICATION DU CHOIX DE L ATTRIBUTAIRE")
+    assert _looks_implausible("CONCURRENT RETENU MONTANT DE L ACTE D ENGAG")
+
+
+def test_looks_implausible_rejects_long_name_without_structure_token():
+    # Mesure sur la tranche 50-90 caracteres de la table Company reelle :
+    # aucun nom d'entreprise reel trouve au-dessus de ce seuil sans SARL/
+    # STE/SOCIETE/SA/SNC/GROUPEMENT.
+    from database.crud.companies import _looks_implausible
+    assert _looks_implausible(
+        "LE CONCURRENT A PRESENTE L OFFRE LA PLUS AVANTAGEUSE")
+
+
+def test_looks_implausible_accepts_short_names_without_structure_token():
+    # De vrais noms courts sans forme juridique existent dans le corpus
+    # (TECTRA, IBECOM...) — le filtre ne doit pas les rejeter.
+    from database.crud.companies import _looks_implausible
+    assert not _looks_implausible("TECTRA")
+    assert not _looks_implausible("ENTREPRISE OUENZAR")
+    assert not _looks_implausible("CENTRALE MAROCAINE D ASSURANCES")
+
+
+def test_looks_implausible_rejects_justification_boilerplate_anywhere():
+    # company_id 48, doc 37526643f298...: classee #1 par total_amount_ttc
+    # dans company_stats_global (Issue 10) avant ce correctif — un fragment
+    # de "l'offre economiquement la plus avantageuse", pas une entreprise.
+    from database.crud.companies import _looks_implausible
+    assert _looks_implausible("ECONOMIQUEMENT LA PLUS AVANTAGEUSE")
+    assert _looks_implausible("OFFRE LA PLUS AVANTAGEUSE")
+
+
+def test_looks_implausible_keeps_real_name_despite_justification_word_nearby():
+    # Le mot "avantageuse" seul ne doit pas rejeter un nom reel accompagne
+    # d'un token de structure (SARL) — seulement l'absence de ce token
+    # declenche le rejet, meme regle que pour la longueur.
+    from database.crud.companies import _looks_implausible
+    assert not _looks_implausible(
+        "DONT L OFFRE EST LA PLUS AVANTAGEUSE SOCIETE ALHAYAT TEC SARL")
+
+
+def test_looks_implausible_accepts_long_name_with_structure_token():
+    # Une longue raison sociale reelle avec un token de structure ne doit
+    # pas etre rejetee par le seul critere de longueur.
+    from database.crud.companies import _looks_implausible
+    assert not _looks_implausible(
+        "STE LABORATOIRE D ETUDES ET D ESSAIS TECHNIQUES ET INDUSTRIELS SARL")
