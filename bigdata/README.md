@@ -152,6 +152,31 @@ pour les marchés déjà attribués).
   réelles ; `"(OH TTC)"` est du bruit OCR adjacent, pas le nom lui-même).
   222 → 218 `Company` après ce correctif.
 
+  **Correctif suivant, sur ce même "(OH TTC)"** : le préfixe parenthèse en
+  tête n'était pas propre à COSTACOM — légende de tableau OCR ("Montants
+  des actes d'engagement (OH TTC)", "en DH TTC" mal lu), collée à la
+  valeur suivante faute d'avoir été reconnue par le filtre de légende
+  d'`extraction/fields.py`. Ajout de `LEADING_PARENTHETICAL_RE` dans
+  `normalize_company_name()` (root fix, `database/normalization.py`) +
+  son miroir Spark natif `_clean_leading_parenthetical_col()` (regexp
+  natif, pas de UDF) dans `build_statistics.py`, appliqué dans
+  `_flag_implausible_companies` et `_drop_implausible_companies`.
+
+  Ce correctif a exposé un second bug, auto-détecté en revérifiant plutôt
+  qu'en supposant le fix propre : `"(PAR TIRAGE AU SORT)"` (company_id 53,
+  une justification de choix entière, aucune entreprise) devient une
+  chaîne vide une fois le préfixe parenthèse retiré — mais
+  `_is_implausible_name()` testait `bool(name) and _looks_implausible(name)`,
+  qui court-circuite sur `""` avant que `_looks_implausible("")` (qui
+  retourne correctement `True`, liste de mots vide) ne soit jamais appelé.
+  `company_id=53` survivait donc silencieusement au filtre malgré un nom
+  nettoyé vide. Corrigé en `name is None or _looks_implausible(name)` —
+  seul un nom réellement absent (`None`, cas déjà couvert par le filtre
+  `company_id IS NOT NULL` en amont) échappe désormais au test, jamais une
+  chaîne vide. 218 → 217 `Company` après ce second correctif (voir
+  validation ci-dessous, `company_id=53` maintenant dans la liste des
+  rejetées, plus de nom commençant par `(` dans `company_stats_global`).
+
   Ne jamais afficher un classement `company_stats_global`/
   `company_stats_by_acheteur` sans vérification visuelle des premières
   lignes — le filtre reste mesuré, pas exhaustif (voir le taux résiduel
@@ -212,3 +237,45 @@ Lignes market_stats : 454 (attendu 454) OK
 TECTRA : 1 award, 721224.86 TTC, M6/CRIRDOE — coherent avec la valeur
 verifiee depuis Issue 7
 ```
+
+### Validation (dernier run réel, après le correctif "(...)" + le bug empty-string)
+
+```
+Company rejetees par le filtre de plausibilite (defense en profondeur,
+5, touchant 6 Award) :
+  id=218 'OFFRE LA PLUS AVANTAGEUSE'
+  id=5   'L OFFRE ECONOMIQUEMENT LA PLUS AVANTAGEUSE'
+  id=206 'OFFRE ECONOMIQUEMENT PLUS AVANTAGEUSE'
+  id=53  ''                              <- nouvellement capture
+  id=48  'ECONOMIQUEMENT LA PLUS AVANTAGEUSE'
+
+Award distincts dans fact                     : 454 (attendu 454)
+Award distincts avec compagnie (avant filtre) : 237
+Award distincts avec compagnie (apres filtre) : 231 (attendu 231)
+Company distinctes (company_stats_global)     : 217  (218 - 1)
+Company distinctes (by_acheteur, dedup)       : 217
+Lignes market_stats                           : 454 (attendu 454)
+OK : tous les recoupements confirmes.
+
+company_id=53 present dans company_stats_global : False
+Noms commencant par "(" dans company_stats_global : 0
+Top 5 par total_amount_ttc :
+  1. company_id=18  COSTACOM                                41 189 000.00
+  2. company_id=45  ^LZ                                      37 093 666.80
+  3. company_id=162 EL6 INNOVATIVE BUILDING SOLUTIONS         31 524 696.30
+  4. company_id=77  OBSERVATIONS DU LOT N° 25-62 TAZART...    19 435 184.64
+  5. company_id=78  AN                                        15 067 445.00
+
+ALHAYAT/BIRG (collision "avantageuse" potentielle, verifiees conservees) :
+  company_id=60 : DONT L OFFRE EST LA PLUS AVANTAGEUSE - SOCIETE ALHAYAT
+                  TEC SARL POUR UN MONTANT
+  company_id=72 : DONT L OFFRE EST LA PLUS AVANTAGEUSE - SOCIETE BIRG
+                  SARL AU POUR UN MONTANT DE
+37 tests passent (tests/ + Issue 8/9/10 confondus).
+```
+
+Note sur le rang #2-#5 : `^LZ`, `AN`, `"OBSERVATIONS DU LOT N° 25-62..."`
+restent du bruit résiduel plausible-mais-pas-réel (aucun ne porte de
+token de structure ni de longueur/mot suspect couvert par les règles
+actuelles) — attendu, documenté dans le taux résiduel ~20% ci-dessus, pas
+un nouvel écart à corriger dans le cadre d'Issue 10.
