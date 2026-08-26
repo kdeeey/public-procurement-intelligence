@@ -52,6 +52,23 @@ SUSPICIOUS_LENGTH_WITHOUT_STRUCTURE = 50
 NOISE_LEADING_WORDS = {"JUSTIFICATION", "MONTANT", "MONTANTS", "ATTRIBUTAIRE",
                        "CONCURRENT", "CONCURRENTS"}
 
+# 3. Boilerplate justification vocabulary ("l'offre economiquement la plus
+#    avantageuse"), checked ANYWHERE in the name rather than only leading —
+#    found in Issue 10 (company_id 48, source doc 37526643f298...: raw
+#    concurrent_retenu "economiquement la Plus avantageuse.", a truncated
+#    fragment of that exact phrase) ranked #1 by total_amount_ttc in
+#    company_stats_global, the single most visible spot a noisy entry could
+#    occupy. Neither word is leading-position-safe like NOISE_LEADING_WORDS
+#    (the phrase gets truncated at different points depending on how much
+#    of the sentence extraction kept), so it needs its own anywhere-position
+#    check — but gated on "no structure token", same guard as the length
+#    rule: an unconditional anywhere-position check would also reject 2
+#    real names measured in the corpus ("...la plus avantageuse - Societe
+#    ALHAYAT TEC SARL...", "...Societe BIRG sarl au...") that happen to
+#    contain "avantageuse" in their surrounding sentence noise but do carry
+#    a real SARL-suffixed name — those must stay recoverable.
+NOISE_WORDS_WHEN_NO_STRUCTURE = {"AVANTAGEUSE", "ECONOMIQUEMENT"}
+
 
 def _looks_implausible(normalized: str) -> bool:
     words = normalized.split()
@@ -60,8 +77,11 @@ def _looks_implausible(normalized: str) -> bool:
     if words[0] in NOISE_LEADING_WORDS:
         return True
     has_structure = any(w in STRUCTURE_TOKENS for w in words)
-    if not has_structure and len(normalized) >= SUSPICIOUS_LENGTH_WITHOUT_STRUCTURE:
-        return True
+    if not has_structure:
+        if len(normalized) >= SUSPICIOUS_LENGTH_WITHOUT_STRUCTURE:
+            return True
+        if any(w in NOISE_WORDS_WHEN_NO_STRUCTURE for w in words):
+            return True
     return False
 
 

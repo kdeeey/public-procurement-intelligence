@@ -119,6 +119,24 @@ def test_looks_implausible_accepts_short_names_without_structure_token():
     assert not _looks_implausible("CENTRALE MAROCAINE D ASSURANCES")
 
 
+def test_looks_implausible_rejects_justification_boilerplate_anywhere():
+    # company_id 48, doc 37526643f298...: classee #1 par total_amount_ttc
+    # dans company_stats_global (Issue 10) avant ce correctif — un fragment
+    # de "l'offre economiquement la plus avantageuse", pas une entreprise.
+    from database.crud.companies import _looks_implausible
+    assert _looks_implausible("ECONOMIQUEMENT LA PLUS AVANTAGEUSE")
+    assert _looks_implausible("OFFRE LA PLUS AVANTAGEUSE")
+
+
+def test_looks_implausible_keeps_real_name_despite_justification_word_nearby():
+    # Le mot "avantageuse" seul ne doit pas rejeter un nom reel accompagne
+    # d'un token de structure (SARL) — seulement l'absence de ce token
+    # declenche le rejet, meme regle que pour la longueur.
+    from database.crud.companies import _looks_implausible
+    assert not _looks_implausible(
+        "DONT L OFFRE EST LA PLUS AVANTAGEUSE SOCIETE ALHAYAT TEC SARL")
+
+
 def test_looks_implausible_accepts_long_name_with_structure_token():
     # Une longue raison sociale reelle avec un token de structure ne doit
     # pas etre rejetee par le seul critere de longueur.

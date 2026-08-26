@@ -74,6 +74,10 @@ def build_fact_table(spark, database_url: str | None = None):
         awards.date_achevement_travaux_commission,
         awards.lot_detection,
         awards.extraction_warnings,
+        # Ajoute pour Issue 10 (number_of_bidders) — non valide contre une
+        # verite terrain (Issue 7), mesure separement au niveau du job de
+        # statistiques plutot que suppose fiable ici.
+        awards.liste_concurrents,
         companies.id.alias("company_id"),
         # Deja normalise en amont (database/normalization.py, Issue 8) —
         # lu tel quel ici, jamais renormalise.
