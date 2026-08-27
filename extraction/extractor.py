@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 from extraction.fields import (
     extract_concurrents,
     extract_concurrent_retenu,
+    extract_concurrent_retenu_brut,
     extract_dates,
     extract_montants,
     extract_reference,
@@ -36,6 +37,10 @@ class Award:
     lot_numero: int | None
     reference: str | None
     concurrent_retenu: str | None
+    # Le bloc brut d'ou `concurrent_retenu` a ete isole — conserve pour la
+    # tracabilite (montrer ce que le document disait reellement), jamais
+    # utilise comme identite d'entreprise.
+    concurrent_retenu_brut: str | None
     montant_ht: float | None
     montant_ttc: float | None
     montant_base_affichee: str | None
@@ -55,6 +60,7 @@ class Award:
 
 def _award_from_segment(doc_id: str, segment: LotSegment) -> Award:
     dates = extract_dates(segment.text)
+    concurrent_retenu_brut = extract_concurrent_retenu_brut(segment.text)
     concurrent_retenu = extract_concurrent_retenu(segment.text)
     montants = extract_montants(segment.text)
     concurrents = extract_concurrents(segment.text)
@@ -64,13 +70,17 @@ def _award_from_segment(doc_id: str, segment: LotSegment) -> Award:
         lot_numero=segment.numero,
         reference=extract_reference(segment.text),
         concurrent_retenu=concurrent_retenu,
+        concurrent_retenu_brut=concurrent_retenu_brut,
         montant_ht=montants.montant_ht,
         montant_ttc=montants.montant_ttc,
         montant_base_affichee=montants.montant_base_affichee,
         date_ouverture_plis=dates["date_ouverture_plis"],
         date_achevement_commission=dates["date_achevement_commission"],
+        # Le BRUT, pas la valeur nettoyee : passer None la ou le nettoyage
+        # n'a isole aucun nom ferait basculer a tort des ATTRIBUE en
+        # INFRUCTUEUX (voir extraction/company_name.py).
         statut=extract_statut(segment.text, segment.declared_infructueux,
-                              concurrent_retenu),
+                              concurrent_retenu_brut),
         liste_concurrents=concurrents.liste_concurrents,
         concurrents_ecartes=concurrents.concurrents_ecartes,
         detection=segment.detection,

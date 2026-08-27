@@ -67,6 +67,7 @@ def load_awards(session: Session, extracted_dir: Path) -> dict[str, int]:
             target.ref_consultation = ref_consultation
             target.reference = raw.get("reference")
             target.concurrent_retenu = raw.get("concurrent_retenu")
+            target.concurrent_retenu_brut = raw.get("concurrent_retenu_brut")
             target.montant_ht = _parse_decimal(raw.get("montant_ht"))
             target.montant_ttc = _parse_decimal(raw.get("montant_ttc"))
             base = raw.get("montant_base_affichee")

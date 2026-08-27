@@ -1,6 +1,10 @@
 """
 Tests for database/normalization.py (Issue 8).
 
+Les 13 tests de _looks_implausible() qui vivaient ici ont ete deplaces et
+reecrits dans tests/test_company_name.py le 27/08/2026, avec la fonction
+qu ils testaient (voir extraction/company_name.py).
+
 Every case here traces back to a real string from data/processed/extracted/
 or an explicit requirement raised during the Issue 8 design discussion.
 """
@@ -107,118 +111,3 @@ def test_get_or_create_company_rejects_implausibly_long_names(tmp_path):
     assert get_or_create_company(session, noise) is None
     assert session.query(Company).count() == 0
     session.close()
-
-
-def test_looks_implausible_rejects_leading_noise_word():
-    # doc 3d46704d054d...: la phrase entiere devient le "nom" faute de
-    # mieux, aucune entreprise n'est meme presente dans cette valeur.
-    from database.crud.companies import _looks_implausible
-    assert _looks_implausible("JUSTIFICATION DU CHOIX DE L ATTRIBUTAIRE")
-    assert _looks_implausible("CONCURRENT RETENU MONTANT DE L ACTE D ENGAG")
-
-
-def test_looks_implausible_rejects_long_name_without_structure_token():
-    # Mesure sur la tranche 50-90 caracteres de la table Company reelle :
-    # aucun nom d'entreprise reel trouve au-dessus de ce seuil sans SARL/
-    # STE/SOCIETE/SA/SNC/GROUPEMENT.
-    from database.crud.companies import _looks_implausible
-    assert _looks_implausible(
-        "LE CONCURRENT A PRESENTE L OFFRE LA PLUS AVANTAGEUSE")
-
-
-def test_looks_implausible_accepts_short_names_without_structure_token():
-    # De vrais noms courts sans forme juridique existent dans le corpus
-    # (TECTRA, IBECOM...) — le filtre ne doit pas les rejeter.
-    from database.crud.companies import _looks_implausible
-    assert not _looks_implausible("TECTRA")
-    assert not _looks_implausible("ENTREPRISE OUENZAR")
-    assert not _looks_implausible("CENTRALE MAROCAINE D ASSURANCES")
-
-
-def test_looks_implausible_rejects_justification_boilerplate_anywhere():
-    # company_id 48, doc 37526643f298...: classee #1 par total_amount_ttc
-    # dans company_stats_global (Issue 10) avant ce correctif — un fragment
-    # de "l'offre economiquement la plus avantageuse", pas une entreprise.
-    from database.crud.companies import _looks_implausible
-    assert _looks_implausible("ECONOMIQUEMENT LA PLUS AVANTAGEUSE")
-    assert _looks_implausible("OFFRE LA PLUS AVANTAGEUSE")
-
-
-def test_looks_implausible_keeps_real_name_despite_justification_word_nearby():
-    # Le mot "avantageuse" seul ne doit pas rejeter un nom reel accompagne
-    # d'un token de structure (SARL) — seulement l'absence de ce token
-    # declenche le rejet, meme regle que pour la longueur.
-    from database.crud.companies import _looks_implausible
-    assert not _looks_implausible(
-        "DONT L OFFRE EST LA PLUS AVANTAGEUSE SOCIETE ALHAYAT TEC SARL")
-
-
-def test_looks_implausible_accepts_long_name_with_structure_token():
-    # Une longue raison sociale reelle avec un token de structure ne doit
-    # pas etre rejetee par le seul critere de longueur.
-    from database.crud.companies import _looks_implausible
-    assert not _looks_implausible(
-        "STE LABORATOIRE D ETUDES ET D ESSAIS TECHNIQUES ET INDUSTRIELS SARL")
-
-
-def test_looks_implausible_rejects_neant_anywhere():
-    # company_id 5 ("- Neant") et 91 ("du marche : Neant."), Company (Issue
-    # 10 suite) : "Neant" n'est jamais en tete (position variable selon le
-    # champ vide dans le PV), doit donc etre detecte n'importe ou, pas
-    # seulement via NOISE_LEADING_WORDS.
-    from database.crud.companies import _looks_implausible
-    assert _looks_implausible("- NEANT")
-    assert _looks_implausible("DU MARCHE NEANT")
-
-
-def test_looks_implausible_rejects_date_pattern():
-    # company_id 21, doc 1a2b0ab1...: une date lue comme concurrent_retenu,
-    # jamais anticipee avant Issue 10. Reutilise le regex de
-    # ocr/matching.py::date_variants() plutot que d'en ecrire un nouveau.
-    from database.crud.companies import _looks_implausible
-    assert _looks_implausible("31/12/2025")
-
-
-def test_looks_implausible_rejects_names_with_no_letter():
-    # company_id 77 ("-"), 108 ("01"), 134 ("1/2"), 149 ("\\ 60") : un nom
-    # d'entreprise contient toujours au moins une lettre.
-    from database.crud.companies import _looks_implausible
-    assert _looks_implausible("-")
-    assert _looks_implausible("01")
-    assert _looks_implausible("1/2")
-
-
-def test_looks_implausible_rejects_short_fragment_without_legal_marker():
-    # company_id 75 ("AN"), 87 ("CT"), 146 ("TF") : verifies contre le
-    # document source (meme methode que "(OH TTC) COSTACOM") — dans les 3
-    # cas, le texte juste apres "Concurrent/Soumissionnaire retenu :" est
-    # un fragment OCR ou une abreviation de colonne de tableau ("TF" =
-    # Tranche Ferme), le vrai vainqueur apparaissant plus bas dans le
-    # tableau des montants. Aucun marqueur de forme juridique dans le texte
-    # brut -> rejetes.
-    from database.crud.companies import _looks_implausible
-    assert _looks_implausible("AN", raw="AN")
-    assert _looks_implausible("CT", raw="ct")
-    assert _looks_implausible("TF", raw="TF:")
-
-
-def test_looks_implausible_keeps_short_acronym_with_legal_marker_in_raw():
-    # company_id 11 ("SEN"), 33 ("TCN"), 30 ("BIGC"), 89 ("SEMH") : de
-    # vraies entreprises a sigle court. normalize_company_name() retire
-    # deja le marqueur juridique simple avant que ce filtre ne s'execute
-    # ("STE SEN SARL" -> "SEN") — le marqueur doit donc etre revalide
-    # contre le texte BRUT (`raw`), pas contre le nom deja normalise.
-    from database.crud.companies import _looks_implausible
-    assert not _looks_implausible("SEN", raw="STE SEN SARL")
-    assert not _looks_implausible("TCN", raw="SOCIETE TCN")
-    assert not _looks_implausible("BIGC", raw="BIGC SARL")
-
-
-def test_looks_implausible_rejects_short_fragment_without_raw_context():
-    # Meme regle appliquee sans texte brut disponible (le cas de
-    # build_statistics.py sur une base pas encore rechargee, ou `raw` est
-    # None) : sans preuve d'un marqueur juridique, un fragment a 1-2
-    # lettres reste rejete par prudence.
-    from database.crud.companies import _looks_implausible
-    assert _looks_implausible("S")
-    assert _looks_implausible("AN")

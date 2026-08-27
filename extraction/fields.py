@@ -19,6 +19,7 @@ import re
 from dataclasses import dataclass, field as dc_field
 
 from ocr.matching import parse_amount_string
+from extraction.company_name import clean_company_candidate
 from extraction.patterns import (
     AMOUNT_HT_RE,
     AMOUNT_RE,
@@ -265,10 +266,16 @@ def _collect_value_block(text: str, start: int, window: int = 400,
 _PURE_INDEX_RE = re.compile(r"^[0-9OoQlIS.,\s]{1,6}$")
 
 
-def extract_concurrent_retenu(text: str) -> str | None:
-    """The winner's name, or the full consortium wording if it is a
-    groupement (data_dictionary.md §3.1 — never split into separate
-    companies)."""
+def extract_concurrent_retenu_brut(text: str) -> str | None:
+    """The raw text block following the "concurrent retenu" label, exactly as
+    `_collect_value_block()` returns it — column headers, justification
+    sentence, address and all.
+
+    Kept as its own function (and persisted as `Award.concurrent_retenu_brut`)
+    because `extract_concurrent_retenu()` now cleans its output: the
+    traceability the project relies on — being able to show what the document
+    actually said — must not be lost by the cleaning step. `extract_statut()`
+    reads THIS value, not the cleaned one (see extraction/company_name.py)."""
     m = LABEL_CONCURRENT_RETENU.search(text)
     if not m:
         return None
@@ -297,6 +304,28 @@ def extract_concurrent_retenu(text: str) -> str | None:
         if societe:
             return societe.group(1).strip() or None
     return candidate or None
+
+
+def extract_concurrent_retenu(text: str) -> str | None:
+    """The winner's name alone, or the full consortium wording if it is a
+    groupement (data_dictionary.md §3.1 — never split into separate
+    companies).
+
+    Isolates the name inside the raw block via
+    extraction/company_name.py::clean_company_candidate() — see that module
+    for the measured reason (107/200 Company affected by adjacent-line
+    capture before this step existed).
+
+    EXCEPTION groupement : la formulation consortium est renvoyee ENTIERE,
+    sans nettoyage. Nettoyer ici couperait sur "ENTRE" ("GROUPEMENT entre la
+    Societe X et la Societe Y") et ferait perdre le mot GROUPEMENT lui-meme,
+    dont database/crud/companies.py::resolve_companies() a besoin pour
+    declencher split_groupement(). Chaque membre est nettoye
+    individuellement apres decoupage, la ou c'est correct de le faire."""
+    brut = extract_concurrent_retenu_brut(text)
+    if brut and GROUPEMENT_RE.search(brut):
+        return brut
+    return clean_company_candidate(brut)
 
 
 # --------------------------------------------------------------------------- #
