@@ -38,9 +38,10 @@ A third, smaller finding while building `concurrents_ecartes_rate`:
 concurrents_ecartes (never validated against ground truth either) carries
 the same extraction-noise character as concurrent_retenu once did
 (caption/boilerplate fragments like "techniques :", "additifs :" rather
-than real names) — reuses database/crud/companies.py::_looks_implausible
+than real names) — reuses extraction/company_name.py::clean_company_candidate
 and database/normalization.py::normalize_company_name (already built and
-tuned for exactly this kind of noise) to keep only plausible entries
+tuned for exactly this kind of noise ; _looks_implausible, cite ici avant
+le 27/08/2026, a ete supprime avec ses quatre listes de rejet) to keep only plausible entries
 before counting an award as having a real exclusion — measured: 215/454
 non-empty raw, 178/454 with at least one plausible name.
 
@@ -65,7 +66,10 @@ from bigdata.spark.jobs.build_statistics import (  # noqa: E402
     collect_implausible_company_ids,
 )
 from bigdata.spark.session import get_spark_session  # noqa: E402
-from database.crud.companies import _looks_implausible  # noqa: E402
+from extraction.company_name import clean_company_candidate  # noqa: E402
+from database.crud.counts import (  # noqa: E402
+    awards_with_company_count, check_against_database, company_count,
+)
 from database.normalization import normalize_company_name  # noqa: E402
 
 COMPANY_FEATURES_PATH = REPO / "data/processed/analytics/company_features"
@@ -87,8 +91,8 @@ def _has_plausible_exclusion(entries) -> bool:
     for raw in entries:
         if raw is None:
             continue
-        normalized = normalize_company_name(raw)
-        if normalized and not _looks_implausible(normalized, raw=raw):
+        cleaned = clean_company_candidate(raw)
+        if cleaned and normalize_company_name(cleaned):
             return True
     return False
 
@@ -195,11 +199,11 @@ def main() -> int:
 
         n_companies = len(features_pdf)
         n_awards_total = award_level.select("award_id").distinct().count()
-        print(f"Company dans la matrice de features : {n_companies} (attendu 200)")
-        print(f"Award (avec compagnie) couverts      : {n_awards_total} (attendu 210)")
-        if n_companies != 200 or n_awards_total != 210:
-            raise RuntimeError("recoupement echoue — diagnostiquer avant de continuer")
-        print("OK : recoupement confirme contre les totaux Issue 9/10.")
+        check_against_database(n_companies, company_count(),
+                               "Company dans la matrice de features")
+        check_against_database(n_awards_total, awards_with_company_count(),
+                               "Award (avec compagnie) couverts")
+        print("OK : recoupement confirme contre la base.")
 
         n_has_ttc = features_pdf["has_ttc_data"].sum()
         n_has_ht = features_pdf["has_ht_data"].sum()
@@ -212,9 +216,9 @@ def main() -> int:
               " voir la docstring de ce module. Imputation median + flag"
               " has_ttc_data geree dans ai/train_isolation_forest.py, pas ici"
               " (ce fichier n'ecrit que les valeurs mesurees, jamais imputees).")
-        print("  Rappel : ~20% de bruit residuel dans Company malgre le filtre"
-              " de plausibilite (database/README.md) — ce compte de 200 n'est"
-              " pas un nombre exact d'entreprises reelles.")
+        print(f"  Rappel : 8,8% de bruit pur + 7,4% de noms contamines dans"
+              f" Company (audit du 27/08/2026, bigdata/README.md) — ce compte"
+              f" de {n_companies} n'est pas un nombre exact d'entreprises reelles.")
 
         example = features_pdf[features_pdf["company_normalized_name"] == "TECTRA"]
         print(f"\n=== exemple concret : TECTRA ===")

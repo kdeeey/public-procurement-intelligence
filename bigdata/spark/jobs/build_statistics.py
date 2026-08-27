@@ -23,7 +23,8 @@ sys.path.insert(0, str(REPO))
 from pyspark.sql import functions as F  # noqa: E402
 
 from bigdata.spark.session import get_spark_session  # noqa: E402
-from database.crud.companies import MAX_PLAUSIBLE_NAME_LENGTH, _looks_implausible  # noqa: E402
+from database.crud.companies import MAX_PLAUSIBLE_NAME_LENGTH  # noqa: E402
+from extraction.company_name import clean_company_candidate  # noqa: E402
 from database.normalization import normalize_company_name  # noqa: E402
 
 FACT_TABLE_PATH = REPO / "data/processed/analytics/fact_award_company"
@@ -73,7 +74,15 @@ def _is_implausible_name(name: str | None, raw: str | None) -> bool:
     # simple leading/trailing marker before this UDF ever sees `name`
     # ("STE SEN SARL" -> "SEN"), so checking the marker against `name`
     # alone would reject real short-acronym companies like SEN/TCN.
-    return name is None or _looks_implausible(name, raw=raw)
+    # 27/08/2026 : _looks_implausible() a disparu, remplace par
+    # extraction/company_name.py::clean_company_candidate() applique en
+    # amont (voir database/crud/companies.py). Le test devient "ce texte
+    # contient-il un nom isolable ?" — `raw` (display_name, avant
+    # normalisation) reste prioritaire car il porte encore la forme
+    # juridique que normalize_company_name() a deja retiree de `name`.
+    if name is None:
+        return True
+    return clean_company_candidate(raw or name) is None
 
 
 def _is_implausible_col(name_col, raw_col):
@@ -84,7 +93,7 @@ def _is_implausible_col(name_col, raw_col):
 
 
 def _flag_implausible_companies(fact):
-    """Defense in depth: re-apply _looks_implausible() to company_normalized_name
+    """Defense in depth: re-apply the name-cleaning check to company_normalized_name
     before any aggregation, adding an `_implausible` boolean column rather
     than filtering here directly — callers null out or filter on it as
     needed, but the UDF itself runs exactly once, cached by the caller.
@@ -241,8 +250,11 @@ def _plausible_names(entries: list[str] | None) -> list[str]:
     for entry in entries:
         if not entry or len(entry) > MAX_PLAUSIBLE_NAME_LENGTH:
             continue
-        norm = normalize_company_name(entry)
-        if not norm or _looks_implausible(norm):
+        cleaned = clean_company_candidate(entry)
+        if not cleaned:
+            continue
+        norm = normalize_company_name(cleaned)
+        if not norm:
             continue
         result.add(norm)
     return sorted(result)
@@ -336,9 +348,9 @@ def main() -> int:
         print(f"Award distincts avec compagnie (apres filtre) : {n_awards_with_company} "
               f"(attendu {n_awards_with_company_before - n_awards_affected})")
         print(f"Company distinctes (company_stats_global)     : {n_companies_global}")
-        print("  NOTE : ~20% de bruit residuel dans Company malgre le filtre de")
-        print("  plausibilite — ce chiffre n'est PAS un compte exact d'entreprises")
-        print("  reelles. Voir database/README.md.")
+        print("  NOTE : 8,8% de bruit pur + 7,4% de noms contamines dans Company")
+        print("  (audit exhaustif du 27/08/2026, bigdata/README.md) — ce chiffre")
+        print("  n'est PAS un compte exact d'entreprises reelles.")
         print(f"Company distinctes (by_acheteur, dedup)       : {n_companies_by_acheteur}")
         print(f"Lignes market_stats                           : {n_market_rows} (attendu 454)")
 
