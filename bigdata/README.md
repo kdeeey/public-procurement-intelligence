@@ -799,3 +799,14 @@ technique. Les ratios obtenus (ex. 156x pour COSTACOM) sont mécaniquement
 extrêmes parce que le CA synthétique est généré indépendamment du vrai
 montant — attendu, ne signifie rien sur une vraie entreprise, jamais à
 interpréter ni à persister comme un résultat.
+
+## Sécurité — hors périmètre de ce prototype, décision assumée (Issue 13+)
+
+L'architecture cible prévoit JWT/RBAC/audit logs (`docs/issues_backlog.md`
+Issue 13), nécessaires pour un déploiement réel où le système serait
+accessible à plusieurs utilisateurs avec des niveaux d'accès différents.
+Ce prototype de 15 jours, purement démonstratif et en lecture seule, non
+déployé, n'implémente pas cette couche — l'API expose directement les
+résultats déjà calculés (`risk_scores`, `company_stats_*`, etc.), sans
+authentification, pour la démonstration. Décision assumée de scope, pas
+un oubli.

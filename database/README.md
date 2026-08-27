@@ -118,3 +118,49 @@ passent toujours (ex. `"GROUP SADE-CGTH / CTHM - Offre base"`, `"CLEAN
 TECH - Offre de base"` — un token de structure absent mais sous le seuil
 de 50 caractères). Le filtre n'a jamais visé l'exhaustivité — voir
 `tests/test_normalization.py` pour les cas couverts explicitement.
+
+Chiffres au-delà de ce point (222 → 218 → 217 → 200 `Company`, filtres
+supplémentaires) : voir `bigdata/README.md`, pas répété ici pour éviter
+deux sources de vérité qui divergent.
+
+## `risk_scores` (Issue 12 suite) — le score final rechargé en base
+
+`ai/risk_score.py` écrit `data/processed/analytics/company_final_risk.parquet`
+(200 lignes, une par `Company`) — jusqu'ici jamais rechargé en base,
+donc invisible dans DBCode et indisponible pour l'API (Issue 13). Ajouté :
+`database/models/risk_score.py` (table `risk_scores`, FK `company_id`
+unique vers `companies.id`) + `database/crud/risk_scores.py::load_risk_scores()`
++ `scripts/load_risk_scores.py` (même convention CLI que
+`scripts/load_database.py` : `--database-url`, `--create-schema`).
+
+**Remplacement complet à chaque chargement, jamais un upsert
+incrémental** : un ré-entraînement d'Isolation Forest peut changer le
+score de n'importe quelle entreprise, pas seulement celle qu'on vient de
+regarder — un upsert ligne par ligne laisserait des scores obsolètes
+pour toute entreprise dont la ligne n'a pas été retouchée explicitement.
+`load_risk_scores()` fait un `DELETE` de toute la table puis réinsère les
+200 lignes du dernier parquet, toujours exactement synchronisé.
+
+```
+python scripts/load_risk_scores.py --database-url postgresql://user:password@localhost:5432/procurement_db --create-schema
+
+RiskScore : {'read': 200, 'inserted': 200, 'skipped_no_company': 0}
+```
+
+Vérifié directement dans le conteneur PostgreSQL persistant :
+distribution `risk_level` (151 Faible / 16 Modéré / 17 Élevé / 16
+Critique) identique à celle imprimée par `ai/risk_score.py`, COSTACOM/
+TECTRA cohérents avec le parquet source.
+
+**Note de casse** : `risk_level` est stocké en majuscules
+(`CRITIQUE`/`FAIBLE`/`MODERE`/`ELEVE`) — comportement par défaut de
+`sqlalchemy.Enum` (stocke le *nom* du membre Python, pas sa `.value`
+`"Critique"`), pas un bug. Un client SQL brut (DBCode, une requête
+manuelle) verra cette casse ; le code applicatif qui repasse par l'ORM
+(dont l'API future d'Issue 13) reconstruit correctement `RiskLevel.CRITIQUE`
+sans s'en soucier.
+
+`skipped_no_company` existe pour le cas où le parquet daterait d'avant un
+rechargement/re-filtrage de `companies` (des `company_id` auraient pu
+changer ou disparaître) — ne fait jamais échouer le chargement sur une
+contrainte FK, compte et signale à la place.
