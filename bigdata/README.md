@@ -810,3 +810,65 @@ déployé, n'implémente pas cette couche — l'API expose directement les
 résultats déjà calculés (`risk_scores`, `company_stats_*`, etc.), sans
 authentification, pour la démonstration. Décision assumée de scope, pas
 un oubli.
+
+## API FastAPI (Issue 13) — `api/`
+
+Source de données : **PostgreSQL, pas Parquet** — `companies`, `awards`,
+`risk_scores` sont déjà chargées et vérifiées en base
+(`scripts/load_database.py`, `scripts/load_risk_scores.py`), et le
+service `api` de `docker-compose.yml` dépend déjà de `postgres`, pas de
+Spark. Lire Parquet directement ajouterait `pyarrow` à un service censé
+rester léger, pour dupliquer une source déjà synchronisée.
+
+```
+api/
+├── main.py           FastAPI(), description OpenAPI avec le rappel du
+│                      principe ("signal statistique, jamais une preuve
+│                      de fraude"), monte les routers
+├── dependencies.py   get_db() — session SQLAlchemy par requete
+├── schemas.py         modeles Pydantic de reponse
+└── routes/
+    ├── companies.py   GET /companies, /companies/{id}, /companies/ranking
+    ├── awards.py       GET /awards/{id}
+    └── stats.py        GET /stats/summary
+```
+
+`api/auth/`/`api/middleware/` restent vides — scaffoldés pour
+l'architecture cible, non implémentés (voir la note de scope
+sécurité ci-dessus). Aucun `POST`/`PUT`/`DELETE` nulle part dans
+`routes/` — lecture seule stricte, imposée par construction, pas
+seulement documentée.
+
+Award.acheteur_public/objet ne sont jamais peuplés par
+`extraction/fields.py` (voir `database/models/award.py`) — les routes
+lisent toujours ces deux champs sur `award.procurement`, jamais sur les
+colonnes (toujours `NULL`) d'`Award` lui-même.
+
+**Vérifié contre la base réelle (`uvicorn api.main:app`, requêtes
+`curl`)** :
+
+```
+GET /stats/summary
+  counts: {procurements: 1750, documents: 390, awards: 454, companies: 200}
+  risk_level_distribution: {Faible: 151, Modere: 16, Eleve: 17, Critique: 16}
+  (identique a scripts/load_risk_scores.py et ai/risk_score.py)
+
+GET /companies/ranking?limit=3
+  #1 COSTACOM (final_score=100.0, dominant_driver=surtout_montant)
+  #2 EL6 INNOVATIVE BUILDING SOLUTIONS (98.9, comportement_et_montant)
+  #3 DANY D ESSAIS ET ETUDES (93.9, comportement_et_montant)
+
+GET /companies/16 (COSTACOM)
+  explanation complete avec la nuance "surtout_montant" (Issue 12),
+  1 award liste (montant_ttc=41189000.00, acheteur reel via procurement)
+
+GET /awards/27
+  concurrent_retenu brut ("(OH TTC) COSTACOM") expose pour la
+  tracabilite, companies=[{id:16, normalized_name:"COSTACOM"}]
+
+GET /companies/999999 -> 404 (pas de risk_score, jamais une reponse
+  vide silencieuse presentee comme "0 entreprise")
+```
+
+43 tests toujours verts (aucune régression — l'API est un nouveau
+consommateur en lecture, ne touche à aucune table existante).
