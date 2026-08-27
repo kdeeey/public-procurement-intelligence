@@ -52,6 +52,8 @@ import joblib  # noqa: E402
 import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
 
+from database.crud.counts import check_against_database, company_count  # noqa: E402
+
 from ai.scoring import RISK_SCORES_PATH  # noqa: E402
 from ai.train_isolation_forest import (  # noqa: E402
     COMPANY_FEATURES_PATH as _COMPANY_FEATURES_PATH, MODEL_FEATURE_COLUMNS, MODEL_PATH,
@@ -120,7 +122,7 @@ def _compute_dominant_driver() -> pd.DataFrame:
     meme ablation que neutraliser TOUT le cluster comportemental
     (single_bidder_rate, groupement_rate, concurrents_ecartes_rate,
     pentes de tendance) ne change RIEN a son score (delta = 0.0000
-    exactement) : son isolement est explique a 100% par le montant. EL6
+    exactement) : son isolement est explique a 100% par le montant. INNOVATIVE BUILDING SOLUTIONS
     INNOVATIVE BUILDING SOLUTIONS, en comparaison, montre un delta reel
     (+0.018) — un vrai effet comportemental, meme modeste. Voir
     bigdata/README.md pour le detail complet de cette verification."""
@@ -183,9 +185,12 @@ def main() -> int:
     composite_pdf = pd.read_parquet(RISK_SCORES_PATH)
 
     n_companies = len(anomaly_pdf)
-    print(f"Company chargees : {n_companies} (attendu 200)")
-    if n_companies != 200 or len(composite_pdf) != 200:
-        raise RuntimeError("recoupement echoue — diagnostiquer avant de continuer")
+    check_against_database(n_companies, company_count(), "Company chargees")
+    if len(composite_pdf) != n_companies:
+        raise RuntimeError(
+            f"recoupement echoue : {len(composite_pdf)} lignes dans "
+            f"company_risk_scores.parquet contre {n_companies} dans "
+            f"company_anomaly_scores.parquet — rejouer ai/scoring.py")
 
     anomaly_pdf["final_score"] = _rescale_to_0_100(anomaly_pdf["anomaly_score"])
     thresholds = _measure_thresholds(anomaly_pdf)
@@ -215,15 +220,16 @@ def main() -> int:
 
     print("\n=== exemples concrets : TECTRA, COSTACOM, EL6 (2e plus anormale) ===")
     examples = result[result["company_normalized_name"].isin(
-        ["TECTRA", "COSTACOM", "EL6 INNOVATIVE BUILDING SOLUTIONS"])]
+        ["TECTRA", "COSTACOM", "INNOVATIVE BUILDING SOLUTIONS"])]
     for _, row in examples.sort_values("final_score", ascending=False).iterrows():
         print(f"\n{row['company_normalized_name']} — final_score={row['final_score']:.1f}"
               f" ({row['risk_level']})")
         print(f"  {row['explanation']}")
 
-    print("\n  Rappel : ~20% de bruit residuel dans Company malgre le filtre de"
-          " plausibilite — un score/niveau eleve sur un nom de bruit n'est pas"
-          " un vrai signal de risque, verifier le nom avant toute interpretation.")
+    print("\n  Rappel : 8,8% de bruit pur + 7,4% de noms contamines dans Company"
+          " (audit du 27/08/2026, bigdata/README.md) — un score/niveau eleve sur"
+          " un nom de bruit n'est pas un vrai signal de risque, verifier le nom"
+          " avant toute interpretation.")
 
     FINAL_RISK_PATH.parent.mkdir(parents=True, exist_ok=True)
     result.to_parquet(FINAL_RISK_PATH, index=False)

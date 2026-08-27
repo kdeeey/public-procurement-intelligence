@@ -72,6 +72,8 @@ import joblib  # noqa: E402
 import pandas as pd  # noqa: E402
 from sklearn.ensemble import IsolationForest  # noqa: E402
 
+from database.crud.counts import check_against_database, company_count  # noqa: E402
+
 COMPANY_FEATURES_PATH = REPO / "data/processed/analytics/company_features.parquet"
 MODEL_PATH = REPO / "ai/models/isolation_forest.joblib"
 FEATURE_COLUMNS_PATH = REPO / "ai/models/feature_columns.json"
@@ -148,9 +150,7 @@ def _load_features() -> pd.DataFrame:
 def main() -> int:
     features_pdf = _load_features()
     n_companies = len(features_pdf)
-    print(f"Company chargees : {n_companies} (attendu 200)")
-    if n_companies != 200:
-        raise RuntimeError("recoupement echoue — diagnostiquer avant de continuer")
+    check_against_database(n_companies, company_count(), "Company chargees")
 
     matrix = prepare_model_matrix(features_pdf)
 

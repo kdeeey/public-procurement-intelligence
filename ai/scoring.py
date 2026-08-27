@@ -3,16 +3,20 @@ Issue 11 — score de risque composite, poids ÉGAUX (pas les poids Fazekas :
 corpus trop petit pour les ré-estimer, voir docs/ideas.md Sec "Score de
 risque composite" — décision déjà actée, réutilisée ici, pas retranchée).
 
-3 red flags actifs, chacun mesuré sur la distribution réelle des 200
-Company, pas des seuils devinés :
+3 red flags actifs, chacun mesuré sur la distribution réelle des 193
+Company, pas des seuils devinés (distribution re-mesurée le 27/08/2026) :
 
-  1. single_bidder_rate >= 0.5   (bimodal : 103 a 0.0, 91 a 1.0, 6 a 0.5 —
+  1. single_bidder_rate >= 0.5   (bimodal : 103 a 0.0, 106 a 1.0, 4 a 0.5 —
      le seuil 0.5 capture aussi les entreprises a 2 awards dont la moitie
      etait a soumissionnaire unique)
-  2. market_share_global_ttc >= 0.010952   (quartile superieur mesure
-     parmi les 96/200 Company AVEC donnee TTC — voir has_ttc_data)
-  3. concurrents_ecartes_rate >= 0.5   (meme bimodalite que #1 : 105 a
-     0.0, 92 a 1.0, 3 a 0.5)
+  2. market_share_global_ttc >= 0.012017   (quartile superieur mesure
+     parmi les 95/193 Company AVEC donnee TTC — voir has_ttc_data.
+     RE-MESURE le 27/08/2026 apres le correctif de nettoyage des noms
+     (200 -> 215 -> 193 Company apres retrait du bruit et fusion des doublons) : 0.010952 etait le Q3 de l'ancienne
+     population de 96, le reutiliser tel quel aurait fait passer un
+     seuil perime pour une valeur mesuree)
+  3. concurrents_ecartes_rate >= 0.5   (meme bimodalite que #1 : 142 a
+     0.0, 68 a 1.0, 3 entre les deux)
 
 Un 4e red flag ("tendance croissante du taux de soumissionnaire unique")
 a ete retire — confirme avec l'utilisateur apres mesure : 0/200 Company
@@ -44,12 +48,14 @@ sys.path.insert(0, str(REPO))
 
 import pandas as pd  # noqa: E402
 
+from database.crud.counts import check_against_database, company_count  # noqa: E402
+
 COMPANY_FEATURES_PATH = REPO / "data/processed/analytics/company_features.parquet"
 ANOMALY_SCORES_PATH = REPO / "data/processed/analytics/company_anomaly_scores.parquet"
 RISK_SCORES_PATH = REPO / "data/processed/analytics/company_risk_scores.parquet"
 
 SINGLE_BIDDER_THRESHOLD = 0.5
-CONCENTRATION_THRESHOLD = 0.010952
+CONCENTRATION_THRESHOLD = 0.012017
 CONCURRENTS_ECARTES_THRESHOLD = 0.5
 
 RED_FLAG_LABELS = {
@@ -97,9 +103,7 @@ def main() -> int:
     features_pdf["market_share_global_ttc"] = pd.to_numeric(
         features_pdf["market_share_global_ttc"], errors="coerce")
     n_companies = len(features_pdf)
-    print(f"Company chargees : {n_companies} (attendu 200)")
-    if n_companies != 200:
-        raise RuntimeError("recoupement echoue — diagnostiquer avant de continuer")
+    check_against_database(n_companies, company_count(), "Company chargees")
 
     scores = features_pdf.apply(compute_composite_score, axis=1, result_type="expand")
     result = pd.concat([features_pdf[["company_id", "company_normalized_name"]], scores], axis=1)
@@ -122,9 +126,9 @@ def main() -> int:
     dist = result["risk_score"].value_counts().sort_index()
     print("\nDistribution des risk_score :")
     print(dist.to_string())
-    print("\n  Rappel : ~20% de bruit residuel dans Company malgre le filtre de"
-          " plausibilite (database/README.md) — un score eleve sur un nom de"
-          " bruit (fragment de phrase, pas une entreprise) n'est pas un vrai"
+    print("\n  Rappel : 8,8% de bruit pur + 7,4% de noms contamines dans Company"
+          " (audit du 27/08/2026, bigdata/README.md) — un score eleve sur un nom"
+          " de bruit (fragment de phrase, pas une entreprise) n'est pas un vrai"
           " signal de risque, verifier le nom avant toute interpretation.")
 
     RISK_SCORES_PATH.parent.mkdir(parents=True, exist_ok=True)
