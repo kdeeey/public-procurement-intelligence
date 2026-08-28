@@ -56,8 +56,6 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO))
 
-import numpy as np  # noqa: E402
-import pandas as pd  # noqa: E402
 from pyspark.sql import functions as F  # noqa: E402
 
 from bigdata.spark.jobs.build_statistics import (  # noqa: E402
@@ -75,19 +73,30 @@ from database.normalization import normalize_company_name  # noqa: E402
 COMPANY_FEATURES_PATH = REPO / "data/processed/analytics/company_features"
 COMPANY_YEARLY_TRAJECTORY_PATH = REPO / "data/processed/analytics/company_yearly_trajectory"
 
-# 2026 est une annee tronquee (~8 mois sur 12, docs/ideas.md Sec 2.5) —
-# exclue de toute pente/croissance, gardee seulement en comptage brut dans
-# la trajectoire ecrite en sortie.
-TREND_YEARS = (2023, 2024, 2025)
 
 
-def _has_plausible_exclusion(entries) -> bool:
+def _has_plausible_exclusion(entries) -> bool | None:
     """Un award a une VRAIE exclusion de concurrent si au moins une entree
     de concurrents_ecartes survit au filtre de plausibilite deja construit
     pour Company (meme bruit de legende/fragment, meme filtre reutilise —
-    voir la docstring du module)."""
+    voir la docstring du module).
+
+    TROIS valeurs de retour, plus deux (corrige le 28/08/2026) :
+
+      None  — la rubrique "concurrents ecartes" est absente du document.
+              On ne sait pas s'il y a eu des exclusions. 239/454 Award.
+      False — la rubrique existe et aucune entree n'est un nom plausible :
+              aucune exclusion, REELLEMENT observee.
+      True  — au moins une exclusion nommee.
+
+    L'ancien `if entries is None: return False` faisait dire au pipeline
+    "aucune exclusion" pour plus de la moitie du corpus alors que le
+    document ne disait rien. La moyenne qui en decoule
+    (concurrents_ecartes_rate) etait donc tiree vers 0 par un trou
+    d'extraction, pas par une pratique d'achat.
+    """
     if entries is None:
-        return False
+        return None
     for raw in entries:
         if raw is None:
             continue
@@ -119,43 +128,80 @@ def _load_clean_award_level(spark, excluded_company_ids: list):
 
 
 def build_company_features(award_level):
-    """Matrice par entreprise — montants HT/TTC jamais fusionnes
-    (data_dictionary.md Sec 3.6), single_bidder_rate fait autorite sur
-    number_of_bidders_filtered (pas _raw, decision Issue 10 confirmee pour
-    Issue 11), concurrents_ecartes_rate filtre le bruit de legende avant
-    de compter (voir _has_plausible_exclusion)."""
+    """Matrice par entreprise — DESCRIPTIVE depuis le 28/08/2026, plus une
+    entree de modele.
+
+    Le modele principal est passe au grain MARCHE
+    (bigdata/spark/jobs/build_market_features.py) : 180/193 entreprises
+    n'ont qu'un seul marche, donc tout "taux" par entreprise est une
+    observation unique deguisee en frequence, et Isolation Forest apprenait
+    surtout la profondeur de presence dans le corpus (13/13 des entreprises
+    a 2 marches signalees anormales contre 25/180 de celles a 1 marche).
+    Ce que ce job produit sert desormais a decrire et regrouper APRES la
+    detection, jamais a la piloter.
+
+    Les taux sont calcules sur les seuls marches ou l'information EXISTE, et
+    accompagnes de leur denominateur (`n_awards_with_*`) : une moyenne sur
+    2 marches renseignes n'a pas le meme poids qu'une moyenne sur 2 marches
+    dont 1 inconnu, et l'ancien code ne permettait pas de faire la
+    difference.
+
+    groupement_rate et les deux pentes de tendance ne sont plus calcules ici
+    (support mesure : 2/193 et 3/193). L'information groupement existe
+    desormais au grain marche, la ou elle est reellement observee.
+    """
     amount_stats = build_company_stats_global(award_level)
 
+    # `number_of_bidders_filtered` est NULL quand le document ne porte pas de
+    # rubrique concurrents. F.avg ignore les NULL, donc le taux porte sur les
+    # seuls marches renseignes — et le compte de ces marches est conserve a
+    # cote pour que l'aval puisse juger de la solidite du taux.
     single_bidder = award_level.groupBy("company_id").agg(
-        F.avg((F.col("number_of_bidders_filtered") <= 1).cast("double")).alias("single_bidder_rate"))
-
-    groupement_rate = award_level.groupBy("company_id").agg(
-        F.avg((F.col("groupement_size") >= 2).cast("double")).alias("groupement_rate"))
+        F.avg((F.col("number_of_bidders_filtered") <= 1).cast("double"))
+            .alias("single_bidder_rate"),
+        F.count("number_of_bidders_filtered").alias("n_awards_with_competitor_data"),
+    )
 
     per_award = award_level.select("company_id", "award_id", "concurrents_ecartes").dropDuplicates(
         ["company_id", "award_id"])
     pdf = per_award.toPandas()
+    # None (rubrique absente) reste None et sera ignore par la moyenne ;
+    # False (rubrique presente, aucune exclusion) compte bien pour 0.
     pdf["_has_exclusion"] = pdf["concurrents_ecartes"].apply(_has_plausible_exclusion)
-    ecartes_rate = (pdf.groupby("company_id")["_has_exclusion"].mean()
-                    .rename("concurrents_ecartes_rate").reset_index())
+    known = pdf.dropna(subset=["_has_exclusion"]).copy()
+    known["_has_exclusion"] = known["_has_exclusion"].astype(float)
+    ecartes_rate = (
+        known.groupby("company_id")["_has_exclusion"]
+        .agg(concurrents_ecartes_rate="mean", n_awards_with_exclusion_data="size")
+        .reset_index()
+    )
+    # Une entreprise dont AUCUN marche ne renseigne la rubrique disparait du
+    # groupby : le join a gauche ci-dessous lui laisse un taux NULL (inconnu),
+    # ce qui est le resultat correct — jamais 0.
     spark = award_level.sparkSession
-    ecartes_rate_df = spark.createDataFrame(ecartes_rate)
+    ecartes_rate_df = spark.createDataFrame(ecartes_rate) if len(ecartes_rate) else None
 
     features = (
         amount_stats
         .join(single_bidder, on="company_id", how="left")
-        .join(groupement_rate, on="company_id", how="left")
-        .join(ecartes_rate_df, on="company_id", how="left")
         .withColumn("has_ttc_data", F.col("n_with_ttc") > 0)
         .withColumn("has_ht_data", F.col("n_with_ht") > 0)
     )
+    if ecartes_rate_df is not None:
+        features = features.join(ecartes_rate_df, on="company_id", how="left")
+    else:
+        features = (features
+                    .withColumn("concurrents_ecartes_rate", F.lit(None).cast("double"))
+                    .withColumn("n_awards_with_exclusion_data", F.lit(0)))
+    features = features.fillna({"n_awards_with_exclusion_data": 0})
     return features
 
 
 def build_yearly_trajectory(award_level):
-    """{company_id: {annee: {...}}} — collecte en pandas pour la pente de
-    regression (numpy, pas de UDF Spark : la table est petite, ~200
-    entreprises x <=4 annees, aucun besoin de paralleliser ce calcul)."""
+    """{company_id, annee} -> comptages annuels observes, sans extrapolation.
+
+    Collecte en pandas parce que la table est minuscule (~193 entreprises x
+    <= 4 annees) ; aucun besoin de paralleliser."""
     by_year = award_level.groupBy("company_id", "company_normalized_name", "annee").agg(
         F.count("award_id").alias("number_of_awards_by_year"),
         F.avg((F.col("number_of_bidders_filtered") <= 1).cast("double")).alias("single_bidder_rate_by_year"),
@@ -164,23 +210,16 @@ def build_yearly_trajectory(award_level):
     )
     pdf = by_year.toPandas()
 
-    def _slope(sub_df: pd.DataFrame, col: str) -> float | None:
-        trend_rows = sub_df[sub_df["annee"].isin(TREND_YEARS)].sort_values("annee")
-        trend_rows = trend_rows.dropna(subset=[col])
-        if len(trend_rows) < 2:
-            return None
-        return float(np.polyfit(trend_rows["annee"], trend_rows[col], 1)[0])
-
-    trend_rows = []
-    for company_id, group in pdf.groupby("company_id"):
-        trend_rows.append({
-            "company_id": company_id,
-            "single_bidder_rate_trend_slope": _slope(group, "single_bidder_rate_by_year"),
-            "number_of_awards_trend_slope": _slope(group, "number_of_awards_by_year"),
-        })
-    trend_pdf = pd.DataFrame(trend_rows)
-
-    return pdf, trend_pdf
+    # Les deux pentes de regression (single_bidder_rate_trend_slope,
+    # number_of_awards_trend_slope) ne sont PLUS calculees ici — retirees le
+    # 28/08/2026. Support mesure : 3/193 entreprises seulement avaient les
+    # >= 2 points annuels (2023-2025) qu'une pente exige. Les 190 autres
+    # recevaient None, puis 0.0 par imputation a l'entree du modele, ce qui
+    # revient a affirmer "tendance plate mesuree" pour 98,4 % du corpus.
+    # Le comptage annuel brut, lui, reste ecrit : il est observe, pas
+    # extrapole, et redeviendra une base de tendance quand le corpus sera
+    # assez profond.
+    return pdf
 
 
 def main() -> int:
@@ -193,9 +232,9 @@ def main() -> int:
         award_level.count()
 
         features = build_company_features(award_level)
-        yearly_pdf, trend_pdf = build_yearly_trajectory(award_level)
+        yearly_pdf = build_yearly_trajectory(award_level)
 
-        features_pdf = features.toPandas().merge(trend_pdf, on="company_id", how="left")
+        features_pdf = features.toPandas()
 
         n_companies = len(features_pdf)
         n_awards_total = award_level.select("award_id").distinct().count()

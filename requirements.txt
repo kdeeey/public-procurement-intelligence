@@ -31,6 +31,8 @@ minio
 # Machine Learning
 scikit-learn
 joblib
+# Explicabilite du modele marche (ai/market_explain.py) — TreeExplainer
+shap
 
 # Backend
 fastapi

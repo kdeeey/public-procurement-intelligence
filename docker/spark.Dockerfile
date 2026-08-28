@@ -77,6 +77,7 @@ RUN pip install --no-cache-dir \
         psycopg2-binary \
         scikit-learn \
         joblib \
+        shap \
         python-dotenv
 
 # Le code est monte en volume a l'execution (-v), jamais copie : l'image
