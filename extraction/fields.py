@@ -16,7 +16,7 @@ dates).
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field as dc_field
+from dataclasses import dataclass
 
 from ocr.matching import parse_amount_string
 from extraction.company_name import clean_company_candidate
@@ -494,18 +494,43 @@ def extract_montants(text: str) -> AmountResult:
 
 @dataclass
 class ConcurrentsResult:
-    liste_concurrents: list[str] = dc_field(default_factory=list)
-    concurrents_ecartes: list[str] = dc_field(default_factory=list)
+    liste_concurrents: list[str] | None = None
+    concurrents_ecartes: list[str] | None = None
 
     @property
-    def number_of_bidders(self) -> int:
+    def number_of_bidders(self) -> int | None:
+        """None quand le document ne porte pas la rubrique du tout — jamais 0.
+
+        Un 0 signifierait "le document liste ses concurrents, et il n'y en a
+        aucun", ce qui est une observation ; l'absence de rubrique n'en est
+        pas une. Confondre les deux fabrique du single_bidder a partir d'un
+        trou d'extraction (mesure : 107/454 Award sans rubrique concurrents,
+        soit 23,6 % du corpus qui basculaient en "0 soumissionnaire").
+        """
+        if self.liste_concurrents is None:
+            return None
         return len(self.liste_concurrents)
 
 
-def _bulleted_names(text: str, label_re: re.Pattern, window: int = 600) -> list[str]:
+def _bulleted_names(text: str, label_re: re.Pattern,
+                    window: int = 600) -> list[str] | None:
+    """Les noms listes sous `label_re`, ou None si la rubrique est absente.
+
+    TROIS ETATS, jamais deux (regle UNKNOWN != ZERO) :
+
+      * None  — la rubrique n'existe pas dans ce document. Information
+        INCONNUE : on ne sait pas combien il y avait de concurrents.
+      * []    — la rubrique existe et ne nomme personne ("Neant"). Zero
+        REELLEMENT OBSERVE, c'est une donnee.
+      * [...] — les noms lus.
+
+    La version precedente renvoyait [] dans les deux premiers cas. Tout
+    l'aval (number_of_bidders, single_bidder_rate, exclusion_rate) lisait
+    donc "0 concurrent" la ou le document ne disait rien du tout.
+    """
     m = label_re.search(text)
     if not m:
-        return []
+        return None
     block = text[m.end():m.end() + window]
     # Bullets survive text_cleaning.py as "•"; a bare line starting with a
     # company-shaped token also counts, since not every list is bulleted.

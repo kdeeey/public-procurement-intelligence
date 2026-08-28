@@ -54,3 +54,9 @@ docs/onboarding.md
 
 # Dossier de travail pour annotation manuelle (copies regenerables, ~16 Mo)
 data/annotation/
+
+# Sauvegardes horodatees avant operation destructive (pg_dump + artefacts)
+backups/
+
+# Outillage local de session
+.claude/

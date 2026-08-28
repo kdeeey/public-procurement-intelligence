@@ -27,11 +27,21 @@ if TYPE_CHECKING:
 
 
 class OcrStatus(str, enum.Enum):
-    """Confirmed enum, Issue 5/6 (ocr/pdf_to_image.py, methodology.md)."""
+    """Confirmed enum, Issue 5/6 (ocr/pdf_to_image.py, methodology.md).
+
+    Les quatre premieres valeurs viennent du pipeline OCR lui-meme. EXCLUDED
+    est un cinquieme etat, ajoute le 28/08/2026 : il ne decrit pas un
+    resultat d'OCR mais une decision humaine de ne pas traiter le fichier
+    (scripts/run_ocr.py::EXCLUDED_STEMS). Avant, ces documents restaient a
+    NULL en base — indistinguables d'un document simplement pas encore
+    traite. Un statut absent ne doit jamais servir a exprimer une exclusion
+    deliberee : la decision doit se lire dans la donnee, pas dans son trou.
+    """
     NATIVE = "native"
     OCR_SUCCESS = "ocr_success"
     OCR_LOW_CONFIDENCE = "ocr_low_confidence"
     OCR_FAILED = "ocr_failed"
+    EXCLUDED = "excluded"
 
 
 class JoinStatus(str, enum.Enum):
@@ -88,7 +98,13 @@ class Document(Base):
     scraped_at: Mapped[datetime | None] = mapped_column(DateTime)
 
     # None until the OCR pipeline has actually run on this file — distinct
-    # from any OcrStatus value, all four of which mean "processed".
+    # from every OcrStatus value, which all mean "a decision was taken"
+    # (four results + EXCLUDED, a deliberate non-treatment).
     ocr_status: Mapped[OcrStatus | None] = mapped_column(Enum(OcrStatus, name="ocr_status"))
+
+    # Rempli uniquement quand ocr_status vaut EXCLUDED : la raison lue dans
+    # scripts/run_ocr.py, pour que l'exclusion soit auditable depuis la base
+    # sans avoir a rouvrir le code ou methodology.md Sec 1.5.
+    ocr_excluded_reason: Mapped[str | None] = mapped_column(String(255))
 
     procurement: Mapped["Procurement | None"] = relationship(back_populates="documents")

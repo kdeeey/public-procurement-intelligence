@@ -25,8 +25,21 @@ def test_plausible_names_dedups_case_and_accent_variants():
     assert result == ["TP HORIZON"]
 
 
-def test_plausible_names_rejects_noise_and_empty_input():
-    assert _plausible_names(None) == []
+def test_plausible_names_distinguishes_unknown_from_zero():
+    """UNKNOWN != ZERO, verrouille le 28/08/2026.
+
+    Ce test affirmait l'inverse jusqu'ici (`_plausible_names(None) == []`) :
+    il encodait le defaut, pas le contrat. Une rubrique concurrents absente
+    du document devenait une liste vide, donc "0 soumissionnaire", donc un
+    marche a soumissionnaire unique — sur 107/454 Award (23,6 % du corpus).
+
+    Les trois etats doivent rester distincts de bout en bout :
+      None -> None  : le document ne dit rien, on ne sait pas.
+      []   -> []    : le document liste ses concurrents, il n'y en a aucun.
+      bruit-> []    : le document liste quelque chose qui n'est pas un nom,
+                      ce qui reste une observation (la rubrique existe).
+    """
+    assert _plausible_names(None) is None, "l'inconnu ne doit jamais devenir un zero"
     assert _plausible_names([]) == []
     assert _plausible_names(["Justification du choix de l'attributaire"]) == []
 

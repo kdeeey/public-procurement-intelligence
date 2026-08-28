@@ -76,9 +76,18 @@ def load_awards(session: Session, extracted_dir: Path) -> dict[str, int]:
             target.date_achevement_travaux_commission = _parse_date(
                 raw.get("date_achevement_commission"))
             target.statut = Statut(raw["statut"])
-            target.liste_concurrents = raw.get("liste_concurrents") or None
-            target.concurrents_ecartes = raw.get("concurrents_ecartes") or None
+            # `or None` ecrasait la distinction que l'extraction produit
+            # desormais : [] (rubrique presente, personne de nomme = zero
+            # observe) devenait NULL (rubrique absente = inconnu). Les deux
+            # etats doivent survivre jusqu'a la base, sinon has_competitor_data
+            # / has_exclusion_data ne peuvent pas etre calcules en aval.
+            # Seul None reste None ; [] est ecrit tel quel.
+            target.liste_concurrents = raw.get("liste_concurrents")
+            target.concurrents_ecartes = raw.get("concurrents_ecartes")
             target.lot_detection = raw.get("detection")
+            # `or None` conserve ici a dessein : un warning est soit present
+            # soit absent, il n'existe pas de "liste de warnings vide
+            # observee" a distinguer d'une absence.
             target.extraction_warnings = raw.get("warnings") or None
 
             target.companies = resolve_companies(session, raw.get("concurrent_retenu"))

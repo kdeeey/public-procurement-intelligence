@@ -47,8 +47,13 @@ class Award:
     date_ouverture_plis: str | None
     date_achevement_commission: str | None
     statut: str
-    liste_concurrents: list[str] = field(default_factory=list)
-    concurrents_ecartes: list[str] = field(default_factory=list)
+    # None = la rubrique est absente du document (information INCONNUE),
+    # [] = la rubrique existe et ne nomme personne (zero REELLEMENT observe).
+    # Les deux etaient [] jusqu'au 28/08/2026, ce qui fabriquait du
+    # "0 soumissionnaire" a partir d'un trou d'extraction — voir
+    # extraction/fields.py::_bulleted_names().
+    liste_concurrents: list[str] | None = None
+    concurrents_ecartes: list[str] | None = None
 
     # Traceability, not part of the data_dictionary schema itself: which
     # segmentation rule produced this lot, and any caveat worth surfacing

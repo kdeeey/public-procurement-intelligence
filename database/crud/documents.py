@@ -18,25 +18,36 @@ from pathlib import Path
 from sqlalchemy.orm import Session
 
 from database.models import Document, JoinStatus, OcrStatus, Procurement
+from ocr.exclusions import EXCLUDED_STEMS
 
 REF_CONSULTATION_RE = re.compile(r"refConsultation=(\d+)")
 OCR_DIR = Path("data/processed/ocr")
 
 
-def _read_ocr_status(doc_id: str) -> OcrStatus | None:
-    """data/processed/ocr/<doc_id>.json's own "ocr_status" field (Issue 5/6,
-    ocr/pdf_to_image.py) — None both when OCR was never run on this file
-    (EXCLUDED_STEMS, data_dictionary.md §3.5) and when the sidecar is simply
-    absent; those two cases are not distinguished here, only surfaced as
-    "we don't have a status" either way."""
+def _read_ocr_status(doc_id: str) -> tuple[OcrStatus | None, str | None]:
+    """(statut, raison d'exclusion) pour un document.
+
+    Corrige le 28/08/2026. Cette fonction confondait auparavant deux
+    situations sous un meme None : un document DELIBEREMENT exclu du
+    pipeline (EXCLUDED_STEMS, data_dictionary.md Sec 3.5) et un document
+    dont le fichier annexe manque simplement. Les 2 documents concernes
+    apparaissaient donc en base avec ocr_status NULL, exactement comme un
+    fichier jamais traite — l'exclusion, qui est une decision documentee et
+    justifiee, etait invisible depuis la base.
+
+    Desormais : EXCLUDED + sa raison pour les premiers, None pour les
+    seconds (le seul vrai "on ne sait pas").
+    """
+    if doc_id in EXCLUDED_STEMS:
+        return OcrStatus.EXCLUDED, EXCLUDED_STEMS[doc_id]
     sidecar = OCR_DIR / f"{doc_id}.json"
     if not sidecar.exists():
-        return None
+        return None, None
     try:
         raw = json.loads(sidecar.read_text(encoding="utf-8")).get("ocr_status")
-        return OcrStatus(raw) if raw else None
+        return (OcrStatus(raw) if raw else None), None
     except (ValueError, json.JSONDecodeError):
-        return None
+        return None, None
 
 
 def _parse_date(value: str | None) -> datetime | None:
@@ -99,7 +110,7 @@ def load_documents(session: Session, manifest_path: Path) -> dict[str, int]:
             target.pdf_url = rec.get("pdf_url")
             target.year = rec.get("year")
             target.scraped_at = _parse_date(rec.get("scraped_at"))
-            target.ocr_status = _read_ocr_status(doc_id)
+            target.ocr_status, target.ocr_excluded_reason = _read_ocr_status(doc_id)
 
             if not existing:
                 session.add(target)
