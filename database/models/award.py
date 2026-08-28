@@ -73,6 +73,14 @@ class Award(Base):
     # dessous, pas dans ce champ, qui reste la source de verite textuelle.
     concurrent_retenu: Mapped[str | None] = mapped_column(Text)
 
+    # Le bloc BRUT d'ou `concurrent_retenu` a ete isole par
+    # extraction/company_name.py (en-tete de colonne, phrase de
+    # justification, adresse inclus). Conserve pour pouvoir montrer ce que
+    # le document disait reellement — le nettoyage amont ne doit jamais
+    # faire perdre la tracabilite. Jamais une identite d'entreprise : ne
+    # sert a aucun join, aucune agregation.
+    concurrent_retenu_brut: Mapped[str | None] = mapped_column(Text)
+
     # Colonnes independantes et nullables, JAMAIS l'une deduite de l'autre
     # par un taux de TVA suppose (data_dictionary.md §3.6, decision
     # explicitement validee) — aucun default, aucun server_default, aucune

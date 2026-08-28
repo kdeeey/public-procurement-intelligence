@@ -123,6 +123,23 @@ Chiffres au-delà de ce point (222 → 218 → 217 → 200 `Company`, filtres
 supplémentaires) : voir `bigdata/README.md`, pas répété ici pour éviter
 deux sources de vérité qui divergent.
 
+> ## ⚠️ Périmé depuis le 27/08/2026
+>
+> ~~Le filtre `_looks_implausible()` décrit dans cette section, et le taux
+> de bruit résiduel « ~20 % » qu'elle annonce.~~
+>
+> Recomptage exhaustif des 200 `Company` le 27/08/2026 : **53,5 %
+> (107/200) affectées**, pas ~20 % — le chiffre venait d'une inspection
+> partielle, jamais d'un comptage complet. `_looks_implausible()` et ses
+> quatre listes de mots interdits ont été **supprimés** et remplacés par
+> `extraction/company_name.py`, appliqué en amont dans l'extraction.
+> Après correctif : **215 `Company`, 8,8 % de bruit pur, 16,3 % affectées**.
+>
+> La cause exacte de l'écart, la méthode de mesure et le bruit restant
+> nommé ligne à ligne : `bigdata/README.md`, section « Correction du
+> 27/08/2026 ». Le texte ci-dessus est conservé pour la trace, il ne
+> décrit plus le code.
+
 ## `risk_scores` (Issue 12 suite) — le score final rechargé en base
 
 `ai/risk_score.py` écrit `data/processed/analytics/company_final_risk.parquet`

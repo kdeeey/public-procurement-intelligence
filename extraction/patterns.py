@@ -245,7 +245,15 @@ NEW_SECTION_RE = re.compile(
     r"\bsign[ée]\b|\ble\s+pr[ée]sident\b", re.IGNORECASE)
 
 # "Néant" marks an absent value; NENAT is the confirmed OCR variant.
-NEANT_RE = re.compile(r"^\s*(?:n[ée]ant|nenat|n[ée]ent)\s*\.?\s*$", re.IGNORECASE)
+# La puce de tete et la ponctuation de fin font partie de la mise en page, pas
+# de la valeur : le PV ecrit "- Neant" aussi souvent que "Neant". Sans les
+# tolerer, le motif ancre echouait et le bloc "- Neant" etait traite comme une
+# valeur presente — donc comme un gagnant nomme, donc un statut ATTRIBUE.
+# Mesure sur le corpus au 28/08/2026 : 2 marches (054e0f7e1874, 19494f11e7ca)
+# classes ATTRIBUE alors que le document declare explicitement l'absence de
+# concurrent retenu. Les puces sont celles que text_cleaning.py laisse passer.
+NEANT_RE = re.compile(r"^\s*[-•*–—]?\s*(?:n[ée]ant|nenat|n[ée]ent)\s*[.;:]?\s*$",
+                      re.IGNORECASE)
 
 # --------------------------------------------------------------------------- #
 # Statut

@@ -101,7 +101,7 @@ def _demo_crosscheck_mechanism(features_pdf: pd.DataFrame, fiscal_pdf: pd.DataFr
 def main() -> int:
     features_pdf = pd.read_parquet(COMPANY_FEATURES_PATH)
     n_companies = len(features_pdf)
-    print(f"Company chargees : {n_companies} (attendu 200)")
+    print(f"Company chargees : {n_companies}")
     if n_companies != 200:
         raise RuntimeError("recoupement echoue — diagnostiquer avant de continuer")
 

@@ -30,7 +30,8 @@ if TYPE_CHECKING:
 
 
 class RiskLevel(str, enum.Enum):
-    """Seuils mesurés sur la distribution réelle des 200 Company, pas
+    """Seuils mesurés sur la distribution réelle des Company (215 au
+    27/08/2026, 200 lors de la conception), pas
     25/50/75 arbitraires — voir ai/risk_score.py::_measure_thresholds()."""
     FAIBLE = "Faible"
     MODERE = "Modere"

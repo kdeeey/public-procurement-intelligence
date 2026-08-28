@@ -132,9 +132,9 @@ def validate(spark, fact_df, database_url: str | None = None) -> None:
     distinct_companies = fact_df.filter(F.col("company_id").isNotNull()) \
         .select("company_id").distinct().count()
     print(f"\nEntreprises distinctes dans le dataset : {distinct_companies}")
-    print("  NOTE : ~20% de bruit residuel dans Company malgre le filtre de")
-    print("  plausibilite (database/crud/companies.py) — ce chiffre n'est PAS")
-    print("  un compte exact d'entreprises reelles. Voir database/README.md.")
+    print("  NOTE : 8,8% de bruit pur + 7,4% de noms contamines dans Company")
+    print("  (audit exhaustif du 27/08/2026, bigdata/README.md) — ce chiffre")
+    print("  n'est PAS un compte exact d'entreprises reelles.")
 
     awards_no_company = fact_df.filter(F.col("company_id").isNull()).count()
     print(f"\nLignes Award sans compagnie liee : {awards_no_company}")

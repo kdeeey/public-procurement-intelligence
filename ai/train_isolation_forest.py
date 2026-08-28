@@ -1,5 +1,16 @@
 """
-Issue 11 — Isolation Forest anomaly detection on the per-company feature
+Issue 11 — Isolation Forest par entreprise.
+
+DEPRECIE depuis le 28/08/2026 : le modele principal du projet est passe au
+grain MARCHE (ai/train_market_model.py). Ce module continue de tourner pour
+alimenter l'affichage descriptif du dashboard et pour permettre la
+comparaison avant/apres, mais son score ne doit plus etre presente comme la
+detection du projet — il est domine par la profondeur de presence dans le
+corpus (13/13 des entreprises a 2 marches signalees anormales contre 25/180
+de celles a 1 marche, sur un corpus ou 93,3 % des entreprises n'ont qu'un
+seul marche).
+
+Isolation Forest anomaly detection on the per-company feature
 matrix built by bigdata/spark/jobs/build_features.py.
 
 Plain Python/pandas/sklearn, not PySpark: 200 rows, 18 columns — nothing
@@ -72,6 +83,8 @@ import joblib  # noqa: E402
 import pandas as pd  # noqa: E402
 from sklearn.ensemble import IsolationForest  # noqa: E402
 
+from database.crud.counts import check_against_database, company_count  # noqa: E402
+
 COMPANY_FEATURES_PATH = REPO / "data/processed/analytics/company_features.parquet"
 MODEL_PATH = REPO / "ai/models/isolation_forest.joblib"
 FEATURE_COLUMNS_PATH = REPO / "ai/models/feature_columns.json"
@@ -89,13 +102,22 @@ FEATURE_COLUMNS_PATH = REPO / "ai/models/feature_columns.json"
 # colonne de reporting != colonne d'entree du modele).
 AMOUNT_COLUMNS_TTC = ["total_amount_ttc"]
 REPORTING_ONLY_AMOUNT_COLUMNS = ["average_amount_ttc", "market_share_global_ttc"]
-TREND_COLUMNS = ["single_bidder_rate_trend_slope", "number_of_awards_trend_slope"]
-NON_IMPUTED_COLUMNS = ["number_of_awards", "single_bidder_rate", "groupement_rate",
+# RETIREES le 28/08/2026 (support mesure sur les 193 Company) :
+#   single_bidder_rate_trend_slope  3/193 renseignes
+#   number_of_awards_trend_slope    3/193 renseignes
+#   has_trend_data                  3/193
+#   groupement_rate                 2/193 non nuls
+# Elles ne sont plus calculees en amont (build_features.py) et ne sont plus
+# des entrees ici. Elles n'ont pas ete "retirees a la derniere etape" : la
+# source qui les produisait a ete supprimee, pour qu'aucun etage ne puisse
+# les reintroduire par inadvertance.
+TREND_COLUMNS: list[str] = []
+NON_IMPUTED_COLUMNS = ["number_of_awards", "single_bidder_rate",
                        "concurrents_ecartes_rate"]
 
 MODEL_FEATURE_COLUMNS = (
-    NON_IMPUTED_COLUMNS + AMOUNT_COLUMNS_TTC + ["has_ttc_data"]
-    + TREND_COLUMNS + ["has_trend_data"]
+    NON_IMPUTED_COLUMNS + AMOUNT_COLUMNS_TTC
+    + ["has_ttc_data", "has_single_bidder_rate", "has_exclusion_rate"]
 )
 
 
@@ -106,17 +128,28 @@ def prepare_model_matrix(features_pdf: pd.DataFrame) -> pd.DataFrame:
     median (montants) vs 0 (pentes)."""
     df = features_pdf.copy()
 
-    df["has_trend_data"] = df["single_bidder_rate_trend_slope"].notna()
-
     for col in AMOUNT_COLUMNS_TTC:
         median_with_data = df.loc[df["has_ttc_data"], col].median()
         df[col] = df[col].fillna(median_with_data)
 
-    for col in TREND_COLUMNS:
-        df[col] = df[col].fillna(0.0)
+    # single_bidder_rate et concurrents_ecartes_rate peuvent desormais etre
+    # NULL : c'est le cas quand AUCUN marche de l'entreprise ne renseigne la
+    # rubrique correspondante (correctif UNKNOWN != ZERO du 28/08/2026).
+    # Auparavant ces taux valaient 0, ce qui affirmait "aucun soumissionnaire
+    # unique" / "aucune exclusion" sans l'avoir observe une seule fois.
+    # Mesure au 28/08/2026 : 6/193 et 22/193 entreprises concernees.
+    #
+    # Meme politique que les montants : mediane des entreprises QUI ONT la
+    # donnee (jamais 0, qui se lirait comme une valeur extreme basse) et un
+    # drapeau explicite pour que le modele puisse apprendre que "impute"
+    # n'est pas en soi un signal.
+    for col, flag in (("single_bidder_rate", "has_single_bidder_rate"),
+                      ("concurrents_ecartes_rate", "has_exclusion_rate")):
+        df[flag] = df[col].notna().astype(int)
+        median = df.loc[df[col].notna(), col].median()
+        df[col] = df[col].fillna(median if pd.notna(median) else 0.0)
 
     df["has_ttc_data"] = df["has_ttc_data"].astype(int)
-    df["has_trend_data"] = df["has_trend_data"].astype(int)
 
     matrix = df[["company_id"] + MODEL_FEATURE_COLUMNS].copy()
     assert not matrix[MODEL_FEATURE_COLUMNS].isna().any().any(), (
@@ -126,8 +159,8 @@ def prepare_model_matrix(features_pdf: pd.DataFrame) -> pd.DataFrame:
 
 
 DECIMAL_COLUMNS = ["total_amount_ht", "average_amount_ht", "total_amount_ttc",
-                   "average_amount_ttc", "market_share_global_ht", "market_share_global_ttc",
-                   "single_bidder_rate_trend_slope", "number_of_awards_trend_slope"]
+                   "average_amount_ttc", "market_share_global_ht",
+                   "market_share_global_ttc"]
 
 
 def _load_features() -> pd.DataFrame:
@@ -148,9 +181,7 @@ def _load_features() -> pd.DataFrame:
 def main() -> int:
     features_pdf = _load_features()
     n_companies = len(features_pdf)
-    print(f"Company chargees : {n_companies} (attendu 200)")
-    if n_companies != 200:
-        raise RuntimeError("recoupement echoue — diagnostiquer avant de continuer")
+    check_against_database(n_companies, company_count(), "Company chargees")
 
     matrix = prepare_model_matrix(features_pdf)
 

@@ -1,0 +1,13 @@
+[
+  "log_montant_ttc",
+  "nb_soumissionnaires",
+  "nb_concurrents_ecartes",
+  "exclusion_rate",
+  "has_amount_data",
+  "has_exclusion_data",
+  "mode_ao_ouvert",
+  "mode_autre",
+  "cat_travaux",
+  "cat_fournitures",
+  "cat_services"
+]

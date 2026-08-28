@@ -2,6 +2,15 @@
 
 ## Config locale requise (Windows), trouvée en testant réellement, pas supposée
 
+> **⚠️ Périmé depuis le 27/08/2026.** Cette section décrit l'installation
+> manuelle des prérequis Windows (`POSTGRES_JDBC_JAR`, `HADOOP_HOME` /
+> `winutils.exe`). Ces deux binaires avaient disparu de la machine, rendant
+> tout le pipeline injouable. Le chemin recommandé est désormais le
+> conteneur `docker/spark.Dockerfile` — voir la section « Le pipeline
+> PySpark tourne maintenant dans Docker » en fin de fichier. Le texte
+> ci-dessous reste valable si tu veux exécuter en local, mais ce n'est plus
+> ce qui a produit les artefacts en place.
+
 1. **JDBC** : `spark.jars.packages` (résolution Maven/Ivy) a échoué dans
    l'environnement de développement, alors que `curl` atteignait la même
    URL Maven Central sans problème — un souci côté résolveur Ivy de la
@@ -800,6 +809,339 @@ extrêmes parce que le CA synthétique est généré indépendamment du vrai
 montant — attendu, ne signifie rien sur une vraie entreprise, jamais à
 interpréter ni à persister comme un résultat.
 
+## ⚠️ Correction du 27/08/2026 — le taux de bruit `Company` rapporté était faux
+
+> **Ce qui était écrit plus haut, et qui est faux :**
+> ~~« ~20 % de bruit résiduel » / « 217 → 200 Company, bruit ramené à ~15 % »~~
+>
+> **Le vrai chiffre, recompté exhaustivement le 27/08/2026 : 53,5 %
+> (107/200) — 34 bruit pur + 73 noms réels noyés dans du texte parasite.**
+
+L'ancienne affirmation n'est pas barrée pour la forme : elle a servi de base
+à trois sections de ce document et à `database/README.md`. La trace de
+l'erreur reste visible volontairement, comme pour la correction « 38 → 31/37
+documents multi-lots ».
+
+### Pourquoi le chiffre était faux — cause vérifiée, pas supposée
+
+Ni la base ni le code n'étaient périmés. Vérifié par **rejeu du filtre**
+alors en place sur `data/processed/extracted/` et comparaison ensembliste
+avec l'export réel de la table : 200 produits / 200 en base / 200 identiques,
+**0 écart dans les deux sens**. La table était exactement ce que le code
+produisait.
+
+Le ~15 % venait d'une **inspection manuelle partielle** après le commit
+`fd0aa49`, jamais d'un recomptage des 200 lignes. Trois défauts structurels
+du filtre expliquent ce qui passait :
+
+1. **La règle de date était inopérante sur une date incluse.**
+   `_looks_implausible()` déléguait à `ocr/matching.py::date_variants()`,
+   dont le regex est ancré (`\s*$`) : il ne matche que si la valeur **est**
+   une date, jamais si elle en **contient** une.
+   `"TANSIFT CONTRACTOR DIRECT 09/12/2025 30/12/2025"` → non détecté.
+
+2. **La règle de longueur était désactivée par la forme juridique.**
+   Le garde `if not has_structure:` protégeait à la fois le seuil de 50
+   caractères et le vocabulaire de justification. Une phrase administrative
+   de 79 caractères contenant `SOCIETE` ou `STE` traversait donc le filtre
+   entier — et c'était **délibéré** : le commentaire du code citait
+   `"...SOCIETE ALHAYAT TEC SARL..."` comme un cas « à garder récupérable ».
+   Le garde-fou avait été calibré sur les cas qu'il laissait passer.
+
+3. **Il n'y a jamais eu de règle « tirage au sort ».** La forme
+   `"(PAR TIRAGE AU SORT)"` était traitée par `normalize_company_name()`,
+   qui retire un groupe parenthésé **de tête**. Sans parenthèses,
+   `"APRES TIRAGE AU SORT"` n'était couvert par rien.
+   `NOISE_LEADING_WORDS` ne testait par ailleurs que `words[0]`, et
+   l'OCR abîme précisément le premier mot (`CONCARRENT`, `CONEURRENT`,
+   `ONCURRENT`, `CENCURRENTS`).
+
+### La leçon de fond : un filtre de rejet ne pouvait pas y arriver
+
+Deux mesures ont commandé la réécriture, pas une préférence de style :
+
+- **73 des 107 cas contiennent un vrai nom.** Les rejeter détruit 73
+  entreprises réelles ; les garder casse la déduplication
+  (`"TANSIFT CONTRACTOR DIRECT 09/12/2025 30/12/2025"` et
+  `"TANSIFT CONTRACTOR DIRECTR•CE"` sont **la même entreprise en deux
+  lignes**, dont aucune ne se joint à l'autre). Un filtre qui ne sait que
+  rejeter n'a aucune issue sur cette moitié du problème.
+- **La longueur ne discrimine rien.** Sur les 11 faux positifs du critère
+  « aucune forme juridique ET ≥ 30 caractères », **11/11 sont de vrais
+  noms** : `LABORATOIRE GEOTECHNIQUE ET TRAVAUX PUBLICS`, `CENTRALE
+  MAROCAINE D ASSURANCES`, `BUREAU MAROCAIN DES ETUDES ET EXPERTISES BMEE`.
+  La raison sociale marocaine est fréquemment une longue phrase descriptive
+  sans SARL. Ajouter une 5ᵉ règle de mot-clé n'aurait pas touché ce fond.
+
+### Le correctif : en amont, et par span de nom
+
+Le défaut naît dans `extraction/fields.py::_collect_value_block()`, qui
+ramasse jusqu'à 6 lignes / 400 caractères après le label et n'y coupe qu'à
+un montant plausible — il avale l'en-tête de colonne, la phrase de
+justification et l'adresse. La correction est donc appliquée **dans
+l'extraction**, pas seulement au chargement :
+
+- `extraction/company_name.py` — nouveau module. Classe chaque token en
+  **BREAKER** (libellé de champ, verbe conjugué, préposition de phrase,
+  nombre écrit en toutes lettres), **NEUTRE** (articles, conjonctions,
+  chiffres isolés) ou **CORE**, puis retient le plus long span contigu sans
+  breaker (à égalité : celui qui porte une forme juridique). Aucun span
+  avec un token CORE → aucun nom dans la valeur → rejet. **Une règle
+  générale remplace les quatre listes de rejet précédentes**, et sait
+  *rogner* au lieu de seulement rejeter.
+- `extraction/corpus_common_words.json` +
+  `scripts/generate_common_words.py` — garde-fou mesuré pour le cas d'un
+  nom réduit à un seul mot générique. Séparation nette et **mesurée** :
+  les 48 vrais noms d'un seul mot du corpus plafonnent à **1,03 %** de
+  fréquence documentaire (NOVEC, SGIAT, SEN), les résidus à rejeter
+  démarrent à **3,35 %** (MAROCAINE 3,35 %, GLOBAL 4,38 %, RAPPORT 5,93 %,
+  PUBLIC 10,82 %, TECHNIQUE 21,65 %). Seuil à 2 %, entre les deux, avec un
+  facteur ~2 de marge de chaque côté.
+- `Award.concurrent_retenu_brut` — **nouvelle colonne** : le bloc brut
+  d'origine est conservé, le nettoyage amont ne fait perdre aucune
+  traçabilité. `extract_statut()` continue de lire le brut, jamais la
+  valeur nettoyée (sinon des `ATTRIBUE` basculeraient à tort en
+  `INFRUCTUEUX` — vérifié : statut inchangé à 94 %).
+- `_looks_implausible()` et ses 4 listes ont été **supprimés**, ainsi que
+  leurs 13 tests, réécrits cas pour cas dans
+  `tests/test_company_name.py` (18 tests) contre la nouvelle fonction.
+
+### Un bug trouvé en vérifiant les cas de référence, pas en relisant le code
+
+La consigne « revérifier TECTRA, COSTACOM, EL6 après rechargement complet »
+a payé : après le premier rechargement, **COSTACOM avait disparu de la
+table** — l'entreprise classée n°1 anomalie du corpus.
+
+Cause : sa valeur brute est `"(OH TTC) COSTACOM"`. `TTC` est un breaker, il
+coupe la chaîne en deux spans d'un token CORE chacun — `["OH"]` et
+`["COSTACOM"]` — aucun ne portant de forme juridique, donc **strictement le
+même score**. `max()` conserve le premier élément à égalité : `"OH"`
+l'emportait par sa seule position, puis tombait sous
+`MIN_REAL_LETTERS_WITHOUT_LEGAL`, et toute l'entreprise était rejetée.
+
+Corrigé en ajoutant le **nombre de lettres** comme troisième critère de
+départage (`score()` renvoie `(forme_juridique, nb_tokens, nb_lettres)`).
+Effet mesuré au-delà de COSTACOM : le rejet du bruit pur passe de 30/34 à
+**32/34** sur le corpus de référence, aucune entreprise réelle perdue.
+Non-régression verrouillée par
+`tests/test_company_name.py::test_clean_prefers_the_longer_span_when_scores_tie`.
+
+### Résultats mesurés — même méthode de comptage avant et après
+
+Classification manuelle ligne à ligne des 200 puis des 213 noms, pas une
+estimation, pas un échantillon.
+
+| | avant (200 Company) | après (215 Company) |
+|---|---:|---:|
+| propre | 93 (46,5 %) | **180 (83,7 %)** |
+| contaminé | 73 (36,5 %) | **16 (7,4 %)** |
+| bruit pur | 34 (17,0 %) | **19 (8,8 %)** |
+| **total affecté** | **107 (53,5 %)** | **35 (16,3 %)** |
+
+Sur les 454 Award : **255 valeurs `concurrent_retenu` corrigées** (68
+devenues NULL = bruit pur éliminé, 187 rognées vers le nom réel), et
+**0 statut, 0 montant modifié** — le rayon d'action est resté celui qui
+était visé.
+
+Qualité d'extraction contre `ground_truth.json`
+(`scripts/validate_extraction.py`), aucune régression :
+
+| champ | avant | après |
+|---|---:|---:|
+| `concurrent_retenu` | 81 % | **88 %** |
+| `reference_pv` | 94 % | 94 % |
+| `date_ouverture_plis` | 100 % | 100 % |
+| `date_achevement_commission` | 81 % | 81 % |
+| `montant_offre_retenue` | 62 % | 62 % |
+| `statut` | 94 % | 94 % |
+| **TOTAL** | **86 %** | **87 %** |
+
+### Un identifiant de tableau collé au nom — le cas EL6
+
+Signalé après le rechargement : *« EL6 INNOVATIVE BUILDING SOLUTIONS est une
+entreprise correcte mais sans EL6 »*. Vérifié dans le document source
+(`b0433c6d2fee`) plutôt que supposé — le PV **numérote ses soumissionnaires** :
+
+```
+EL 4 : DEVELOPPEMENT INGENIERIE ORGAN
+EL5 : SOCIETE IMILCHIL
+EL 6 : INNOVATIVE BUILDING SOLUTIONS
+EL7 : MESKI DE TRAVAUX DIVERS
+```
+
+`EL 6` est un identifiant de ligne de tableau, pas un morceau de raison
+sociale. C'est le format `Libellé : valeur` du PV, déjà connu ailleurs dans
+le projet. Le **deux-points est donc traité comme un séparateur de span**,
+au même titre qu'une date.
+
+Pourquoi un séparateur, et pas « garder ce qui suit le dernier `:` » : sur
+les **44 valeurs brutes du corpus** qui contiennent un `:`, le nom est
+tantôt **à droite** (`Attributaire : Sté APERAL`, `sans réserve : LABOTEST
+et LPEE`), tantôt **à gauche** quand le deux-points termine la ligne
+(`IMS TECHNOLOGY TF :`, `ALL MTGI Offre :`). Une règle de position casserait
+la moitié des cas ; la sélection du meilleur span tranche dans les deux
+sens. Effet mesuré sur la table : `EL6 INNOVATIVE BUILDING SOLUTIONS` →
+`INNOVATIVE BUILDING SOLUTIONS`, plus deux fragments de bruit raccourcis.
+
+**La généralisation a été écrite, mesurée, puis REJETÉE.** Une règle
+« retirer un sigle de 1-3 lettres en tête quand au moins deux mots
+distinctifs suivent » a été appliquée aux 215 noms réels : **3 corrections
+pour 9 destructions** —
+
+| nom réel | ce que la règle en aurait fait |
+|---|---|
+| `ALI OUBANE TRAVAUX` | `OUBANE TRAVAUX` |
+| `BCT QUALICONSULT CONSTRUCTION MAROC` | `QUALICONSULT CONSTRUCTION MAROC` |
+| `MY GREEN NEGOCE` | `GREEN NEGOCE` |
+| `FIX IT SOLUTION` | `IT SOLUTION` |
+| `KIT MED SLAOUI ET CIE` | `MED SLAOUI ET CIE` |
+| `NET SERVICES INFORMATIQUE & BUREAUTIQUE` | `SERVICES INFORMATIQUE & BUREAUTIQUE` |
+
+Un sigle court en tête est parfaitement ordinaire dans une raison sociale
+marocaine ; **rien ne le distingue d'un identifiant de tableau sans le
+deux-points qui le suit**. Non-régression verrouillée par
+`test_clean_does_not_strip_a_short_leading_token_of_a_real_name`
+(`tests/test_company_name.py`).
+
+**Note de lecture** : les sections historiques plus haut dans ce fichier
+citent encore `EL6 INNOVATIVE BUILDING SOLUTIONS` — elles décrivent des
+exécutions antérieures et sont conservées telles quelles, comme le reste
+des traces de ce document. L'entité s'appelle désormais
+`INNOVATIVE BUILDING SOLUTIONS`.
+
+### Les seuils recalculés, jamais réutilisés
+
+Le passage de 200 à 215 `Company` change la population sur laquelle les
+seuils avaient été mesurés — les réutiliser tels quels aurait fait passer
+une valeur périmée pour une valeur mesurée :
+
+| Seuil | avant | après | source |
+|---|---:|---:|---|
+| `CONCENTRATION_THRESHOLD` (`ai/scoring.py`) | 0,010952 | **0,011191** | Q3 de `market_share_global_ttc` sur les 98/215 Company avec donnée TTC (96/200 avant) |
+| Frontière Faible (`ai/risk_score.py`) | — | recalculée | frontière que le modèle choisit lui-même (`is_anomaly`) |
+| Modéré / Élevé / Critique | — | recalculés | terciles mesurés du sous-groupe anormal |
+
+Isolation Forest a été **réentraîné** sur les 215 lignes (45 anomalies
+signalées). Distribution obtenue : 173 Faible / 14 Modéré / 14 Élevé /
+14 Critique.
+
+Les contrôles de volumétrie codés en dur (`if n_companies != 200: raise`,
+présents dans `build_features.py` et les trois scripts `ai/`) auraient fait
+échouer les cinq étages de la chaîne. Ils lisent désormais la référence
+depuis la base — voir `database/crud/counts.py`.
+
+### Vérification des trois cas de référence, après chaîne complète
+
+```
+EL6 INNOVATIVE BUILDING SOLUTIONS  94,4  Critique  comportement_et_montant  3 flags
+COSTACOM                           94,2  Critique  comportement_et_montant  1 flag
+TECTRA                             14,2  Faible    surtout_montant          0 flag
+```
+
+Confirmés identiques dans PostgreSQL et via l'API (`GET /stats/summary`,
+`GET /companies/ranking`) : 1750 procurements / 390 documents / 454 awards /
+215 companies.
+
+### Le bruit qui reste — nommé, pas caché
+
+**19 bruits purs (8,8 %)**, dont aucun n'est rattrapable par une règle
+générale : ce sont des fragments OCR indiscernables d'un nom rare par la
+fréquence (`TFC` 0,26 %, `DIRNAMS` 0,77 %, `MONFANT` 0,26 %, `TIC` 1,55 %),
+des toponymes (`TAZART ENNAKHIL`, `HASSAN II AZILAL`) et des morceaux de
+descriptif de lot :
+
+```
+2-ZZ-431 DU 0G 0L1IOZS           DUREE MAX            NENAT L IQ
+AO00 INTERNATIONAL N 19 2025 KH  ELECI RONIQUE NZE    OONFORMEMEM
+AOO N 38-2025 INFRICTUEUX        HASSAN II AZILAL     TAZART ENNAKHIL
+CONVENTION                       MARCH E CU LIG       TFC
+DIRNAMS                          MAROCAINE            TIC
+DUR6E MAX DE 3 NN6E S RESP...    MONFANT              USTIFICATION
+NO1 TRAVAUX D AMENAGEMENT DES VOIES ET RUES DE IA VILLE DE MARRAKECH
+```
+
+**16 contaminations (7,4 %)** — un vrai nom accompagné d'une adresse, d'une
+ville ou d'une liste non scindée :
+
+```
+AF TECHNOLOGY 3N SYSTEMS TMAY INFO CT CHRONO TECH   ES STE EL HOURIA HOLDING
+ALL MTGI                                            GR- STE GUW ET SASD
+ATLAS HANDASSA SARL STE AMICALE DES TRAVAUX...      OCIETE SJ2T
+BOURAF TRAVAUX SARL DR IKISS IKNIOUNE TINGHIR       TANSIFT CONTRACTOR DIRECTR
+EI GAGEMENT PREMIUM TELECOM CUSTOMER SERVICES       TECHNIQUES X OFFTCE SYSREMS
+ELEXPERT SARL DE CASABLANCA                         GRP SEAT E A TRAVAUX MEKNES
+ENGAFEMENT SOCIETE O2E ENERGIE TO                   TRAFFITEC- RIFL BIOMETRICS-...
+LMS ORGANISATION REMUNERATION DU FONDS HASSAN
+LOACFE DTENETEEMENT LA SOCIETE ECLANOUR SARL JUSTIFICATIONDUCHOIXDEL
+```
+
+**La règle de lecture ne change pas** : ne jamais afficher un classement
+`company_stats_*` sans vérification visuelle des premières lignes. Le
+nettoyage est mesuré, il n'est pas exhaustif.
+
+### État de la propagation aval — chaîne complète rejouée
+
+| Étape | État |
+|---|---|
+| `data/processed/extracted/` (388 JSON, 454 Award) | ✅ régénéré |
+| PostgreSQL — `procurements`/`documents`/`awards`/`companies` | ✅ rechargé (TRUNCATE + reload complet, 215 Company) |
+| Parquet `fact_award_company`, `company_stats_*`, `market_stats` | ✅ régénérés |
+| `company_features`, `company_yearly_trajectory` | ✅ régénérés |
+| Isolation Forest (`ai/models/`), seuils, `company_final_risk` | ✅ réentraîné et recalculé |
+| Table `risk_scores` | ✅ rechargée (215 lignes, 0 `skipped_no_company`) |
+| API (`/stats/summary`, `/companies/ranking`) | ✅ vérifiée contre la base réelle |
+
+## Le pipeline PySpark tourne maintenant dans Docker — `docker/spark.Dockerfile`
+
+> **Ce qui était écrit en tête de ce fichier, et qui n'est plus la
+> procédure recommandée :**
+> ~~« Config locale requise (Windows) : télécharger `POSTGRES_JDBC_JAR` à la
+> main, installer `HADOOP_HOME`/`winutils.exe` depuis un dépôt tiers. »~~
+
+Ces deux prérequis avaient disparu de la machine de développement, rendant
+**tout le pipeline injouable** — et c'est structurel, pas accidentel : une
+étape qui dépend de binaires installés à la main hors du dépôt n'est pas
+reproductible. `build_analytics_dataset` échouait sur `HADOOP_HOME and
+hadoop.home.dir are unset`, levé dans l'initialiseur statique de
+`org.apache.hadoop.util.Shell`, **avant même le démarrage du
+`SparkContext`** — vérifié : même une `SparkSession` nue, sans aucun jar,
+échoue de la même façon sous Windows.
+
+Sous Linux, `winutils.exe` n'existe simplement pas. Le conteneur supprime
+donc les deux prérequis d'un coup : le JDK vient de la distribution, le jar
+JDBC est téléchargé à la construction de l'image.
+
+```bash
+docker build -f docker/spark.Dockerfile -t ppi-spark .
+
+docker run --rm --network public-procurement-intelligence_default \
+    -v "D:/public-procurement-intelligence:/app" -w /app ppi-spark \
+    python -m bigdata.spark.jobs.build_analytics_dataset
+```
+
+Points à connaître :
+
+- **Le réseau.** `--network public-procurement-intelligence_default` place
+  le conteneur sur le réseau compose, où le service `postgres` répond à son
+  nom d'hôte — c'est déjà la valeur de `DATABASE_URL` dans `.env`,
+  contrairement aux scripts lancés depuis l'hôte qui doivent passer par
+  `localhost` (voir la section « postgres vs localhost » plus haut).
+- **Java 21, pas 17.** `python:3.11-slim` est passé à Debian trixie, dont
+  les dépôts ne proposent plus `openjdk-17-jre-headless` (`has no
+  installation candidate`, rencontré à la construction).
+- **Git Bash.** Préfixer la commande de `MSYS_NO_PATHCONV=1`, sinon MSYS
+  convertit `/app` en `C:/Program Files/Git/app` et Docker refuse le
+  répertoire de travail.
+- **Le code est monté, jamais copié** (`-v`) : l'image reste valable
+  pendant qu'on itère sur les jobs.
+- L'image porte **aussi** scikit-learn et joblib : la chaîne complète
+  Spark → Isolation Forest → `risk_score` tourne dans le même
+  environnement, sans repasser par l'hôte entre deux étapes.
+
+Le `.venv` du dépôt et l'installation locale de PySpark restent utilisables
+si les deux prérequis Windows sont présents — mais ce n'est plus le chemin
+documenté, et ce n'est plus celui qui a produit les artefacts en place.
+
 ## Sécurité — hors périmètre de ce prototype, décision assumée (Issue 13+)
 
 L'architecture cible prévoit JWT/RBAC/audit logs (`docs/issues_backlog.md`
@@ -810,3 +1152,138 @@ déployé, n'implémente pas cette couche — l'API expose directement les
 résultats déjà calculés (`risk_scores`, `company_stats_*`, etc.), sans
 authentification, pour la démonstration. Décision assumée de scope, pas
 un oubli.
+
+## API FastAPI (Issue 13) — `api/`
+
+Source de données : **PostgreSQL, pas Parquet** — `companies`, `awards`,
+`risk_scores` sont déjà chargées et vérifiées en base
+(`scripts/load_database.py`, `scripts/load_risk_scores.py`), et le
+service `api` de `docker-compose.yml` dépend déjà de `postgres`, pas de
+Spark. Lire Parquet directement ajouterait `pyarrow` à un service censé
+rester léger, pour dupliquer une source déjà synchronisée.
+
+```
+api/
+├── main.py           FastAPI(), description OpenAPI avec le rappel du
+│                      principe ("signal statistique, jamais une preuve
+│                      de fraude"), monte les routers
+├── dependencies.py   get_db() — session SQLAlchemy par requete
+├── schemas.py         modeles Pydantic de reponse
+└── routes/
+    ├── companies.py   GET /companies, /companies/{id}, /companies/ranking
+    ├── awards.py       GET /awards/{id}
+    └── stats.py        GET /stats/summary
+```
+
+`api/auth/`/`api/middleware/` restent vides — scaffoldés pour
+l'architecture cible, non implémentés (voir la note de scope
+sécurité ci-dessus). Aucun `POST`/`PUT`/`DELETE` nulle part dans
+`routes/` — lecture seule stricte, imposée par construction, pas
+seulement documentée.
+
+Award.acheteur_public/objet ne sont jamais peuplés par
+`extraction/fields.py` (voir `database/models/award.py`) — les routes
+lisent toujours ces deux champs sur `award.procurement`, jamais sur les
+colonnes (toujours `NULL`) d'`Award` lui-même.
+
+**Vérifié contre la base réelle (`uvicorn api.main:app`, requêtes
+`curl`)** :
+
+```
+GET /stats/summary
+  counts: {procurements: 1750, documents: 390, awards: 454, companies: 200}
+  risk_level_distribution: {Faible: 151, Modere: 16, Eleve: 17, Critique: 16}
+  (identique a scripts/load_risk_scores.py et ai/risk_score.py)
+
+GET /companies/ranking?limit=3
+  #1 COSTACOM (final_score=100.0, dominant_driver=surtout_montant)
+  #2 EL6 INNOVATIVE BUILDING SOLUTIONS (98.9, comportement_et_montant)
+  #3 DANY D ESSAIS ET ETUDES (93.9, comportement_et_montant)
+
+GET /companies/16 (COSTACOM)
+  explanation complete avec la nuance "surtout_montant" (Issue 12),
+  1 award liste (montant_ttc=41189000.00, acheteur reel via procurement)
+
+GET /awards/27
+  concurrent_retenu brut ("(OH TTC) COSTACOM") expose pour la
+  tracabilite, companies=[{id:16, normalized_name:"COSTACOM"}]
+
+GET /companies/999999 -> 404 (pas de risk_score, jamais une reponse
+  vide silencieuse presentee comme "0 entreprise")
+```
+
+43 tests toujours verts (aucune régression — l'API est un nouveau
+consommateur en lecture, ne touche à aucune table existante).
+
+## Refonte du 28/08/2026 — l'unite d'analyse passe de l'entreprise au marche
+
+Rapport complet et chiffre : [`docs/refonte_marche.md`](../docs/refonte_marche.md),
+regenerable par `python scripts/report_refonte.py --markdown docs/refonte_marche.md`
+(aucun chiffre n'y est ecrit en dur).
+
+### Ce qui a change, en une mesure
+
+    entreprises a 1 marche  : 180/193 (93,3 %) ->  25/180 signalees (13,9 %)
+    entreprises a 2 marches :  13/193          ->  13/13  signalees (100  %)
+
+L'ancien modele apprenait la profondeur de presence dans le corpus, un
+artefact de couverture du scraping. Un "taux" sur une observation unique
+n'est pas un taux.
+
+### Ordre d'execution de la chaine
+
+```bash
+python scripts/run_extraction.py                     # JSON, grain lot
+python scripts/load_database.py --create-schema      # PostgreSQL
+
+# tout le reste dans l'image ppi-spark
+D=postgresql://user:password@postgres:5432/procurement_db
+R="docker run --rm --network public-procurement-intelligence_default \
+     -e DATABASE_URL=$D -v D:/public-procurement-intelligence:/app -w /app ppi-spark"
+
+$R python -m bigdata.spark.jobs.build_analytics_dataset
+$R python -m bigdata.spark.jobs.build_statistics
+$R python -m bigdata.spark.jobs.build_market_features   # NOUVEAU — grain marche
+$R python -m ai.train_market_model                      # NOUVEAU — modele principal
+$R python -m ai.market_red_flags                        # NOUVEAU
+$R python -m ai.market_explain                          # NOUVEAU — SHAP + ablation
+
+# etage entreprise, desormais DESCRIPTIF
+$R python -m bigdata.spark.jobs.build_features
+$R python -m ai.train_isolation_forest
+$R python -m ai.scoring && $R python -m ai.risk_score
+python scripts/load_risk_scores.py                      # depuis l'hote
+```
+
+**`-e DATABASE_URL` est obligatoire** et manquait a la commande documentee
+plus haut dans ce fichier : le conteneur ne lit pas `.env`, il retombait donc
+sur le defaut `localhost`, qui designe le conteneur lui-meme. Symptome :
+`FAILED_JDBC.CONNECTION ... Couldn't connect to the database`.
+
+### Trois defauts trouves en verifiant les sorties, pas en relisant le code
+
+1. **Le modele detectait les trous d'extraction.** Premier Top 10 marche :
+   les marches les plus "atypiques" etaient ceux dont on ne savait rien.
+   Mesure : 7/7 des marches sans aucune information signales (100 %) contre
+   ~6 % quand 2 ou 3 informations existent. Corrige par un seuil de
+   completude (`MIN_DATA_COMPLETENESS = 2`) ; correlation score/completude
+   ramenee de **-0,249 a +0,063**. 35 marches deviennent non scorables et
+   sont affiches comme tels, jamais comme "Faible".
+2. **Une colonne constante dans le modele.** `has_competitor_data` sortait a
+   une importance SHAP exactement nulle : apres le seuil de completude, elle
+   vaut 1 pour les 279 marches retenus. La correlation ne peut pas detecter
+   une constante (elle vaut NaN) — d'ou un controle de variance distinct.
+3. **Un taux d'exclusion arithmetiquement impossible.** 14 marches declarent
+   plus de concurrents ecartes que de soumissionnaires (tous a 1 pour 2-3).
+   C'est une incoherence entre deux rubriques extraites, pas un taux de
+   300 % : RF02 devient non evaluable sur ces marches. Sans ce traitement,
+   le quantile 0,90 de `exclusion_rate` valait exactement 1,000 — un seuil
+   degenere qui ne separait plus rien.
+
+### Ce que la refonte ne corrige pas
+
+Le montant reste absent de 63 % des marches ; l'estimation administrative
+est hors d'atteinte (0/454), donc aucun ecart estimation/attribution n'est
+calculable et le red flag RF04 n'existe pas ; il n'y a **aucune verite
+terrain au niveau marche**, donc la stabilite du modele est mesuree mais sa
+justesse ne peut pas l'etre.

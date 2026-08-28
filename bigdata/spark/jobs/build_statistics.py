@@ -23,7 +23,9 @@ sys.path.insert(0, str(REPO))
 from pyspark.sql import functions as F  # noqa: E402
 
 from bigdata.spark.session import get_spark_session  # noqa: E402
-from database.crud.companies import MAX_PLAUSIBLE_NAME_LENGTH, _looks_implausible  # noqa: E402
+from database.crud.companies import MAX_PLAUSIBLE_NAME_LENGTH  # noqa: E402
+from database.crud.counts import award_count, check_against_database  # noqa: E402
+from extraction.company_name import clean_company_candidate  # noqa: E402
 from database.normalization import normalize_company_name  # noqa: E402
 
 FACT_TABLE_PATH = REPO / "data/processed/analytics/fact_award_company"
@@ -73,7 +75,15 @@ def _is_implausible_name(name: str | None, raw: str | None) -> bool:
     # simple leading/trailing marker before this UDF ever sees `name`
     # ("STE SEN SARL" -> "SEN"), so checking the marker against `name`
     # alone would reject real short-acronym companies like SEN/TCN.
-    return name is None or _looks_implausible(name, raw=raw)
+    # 27/08/2026 : _looks_implausible() a disparu, remplace par
+    # extraction/company_name.py::clean_company_candidate() applique en
+    # amont (voir database/crud/companies.py). Le test devient "ce texte
+    # contient-il un nom isolable ?" — `raw` (display_name, avant
+    # normalisation) reste prioritaire car il porte encore la forme
+    # juridique que normalize_company_name() a deja retiree de `name`.
+    if name is None:
+        return True
+    return clean_company_candidate(raw or name) is None
 
 
 def _is_implausible_col(name_col, raw_col):
@@ -84,7 +94,7 @@ def _is_implausible_col(name_col, raw_col):
 
 
 def _flag_implausible_companies(fact):
-    """Defense in depth: re-apply _looks_implausible() to company_normalized_name
+    """Defense in depth: re-apply the name-cleaning check to company_normalized_name
     before any aggregation, adding an `_implausible` boolean column rather
     than filtering here directly — callers null out or filter on it as
     needed, but the UDF itself runs exactly once, cached by the caller.
@@ -234,15 +244,24 @@ def build_company_stats_global(fact):
     )
 
 
-def _plausible_names(entries: list[str] | None) -> list[str]:
+def _plausible_names(entries: list[str] | None) -> list[str] | None:
+    # None (rubrique absente du document) reste None, il ne devient pas [] :
+    # "on ne sait pas qui a soumissionne" et "le document liste ses
+    # concurrents et il n'y en a aucun" sont deux etats differents, et c'est
+    # le second seulement qui autorise a conclure single_bidder.
+    if entries is None:
+        return None
     if not entries:
         return []
     result = set()
     for entry in entries:
         if not entry or len(entry) > MAX_PLAUSIBLE_NAME_LENGTH:
             continue
-        norm = normalize_company_name(entry)
-        if not norm or _looks_implausible(norm):
+        cleaned = clean_company_candidate(entry)
+        if not cleaned:
+            continue
+        norm = normalize_company_name(cleaned)
+        if not norm:
             continue
         result.add(norm)
     return sorted(result)
@@ -258,11 +277,25 @@ def build_market_stats(spark, fact):
     filter_udf = F.udf(_plausible_names, "array<string>")
     per_award = per_award.withColumn("_filtered", filter_udf(F.col("liste_concurrents")))
 
+    # NULL quand la rubrique est absente, jamais 0 : `coalesce(..., 0)`
+    # transformait 107/454 documents sans rubrique concurrents en marches a
+    # "0 soumissionnaire", que single_bidder_rate lisait ensuite comme un
+    # marche a soumissionnaire unique. `has_competitor_data` porte
+    # explicitement l'etat de l'information, au lieu de le laisser deviner
+    # a partir d'une valeur.
+    #
+    # F.size() renvoie -1 (et non NULL) sur un tableau NULL avec la
+    # configuration par defaut de Spark — d'ou le `when(isNotNull)` explicite
+    # plutot qu'un simple size() qui reintroduirait une valeur numerique
+    # fausse a la place de l'inconnu.
+    has_data = F.col("liste_concurrents").isNotNull()
     return per_award.select(
         "award_id",
         "doc_id",
-        F.coalesce(F.size(F.col("liste_concurrents")), F.lit(0)).alias("number_of_bidders_raw"),
-        F.size(F.col("_filtered")).alias("number_of_bidders_filtered"),
+        has_data.cast("int").alias("has_competitor_data"),
+        F.when(has_data, F.size(F.col("liste_concurrents"))).alias("number_of_bidders_raw"),
+        F.when(F.col("_filtered").isNotNull(),
+               F.size(F.col("_filtered"))).alias("number_of_bidders_filtered"),
     )
 
 
@@ -331,21 +364,39 @@ def main() -> int:
         for row in dropped_companies:
             print(f"  id={row['company_id']} {row['company_normalized_name']!r}")
 
-        print(f"\nAward distincts dans fact                     : {n_awards_total} (attendu 454)")
+        print(f"\nAward distincts dans fact                     : {n_awards_total}")
         print(f"Award distincts avec compagnie (avant filtre) : {n_awards_with_company_before}")
-        print(f"Award distincts avec compagnie (apres filtre) : {n_awards_with_company} "
-              f"(attendu {n_awards_with_company_before - n_awards_affected})")
+        print(f"Award distincts avec compagnie (apres filtre) : {n_awards_with_company}")
         print(f"Company distinctes (company_stats_global)     : {n_companies_global}")
-        print("  NOTE : ~20% de bruit residuel dans Company malgre le filtre de")
-        print("  plausibilite — ce chiffre n'est PAS un compte exact d'entreprises")
-        print("  reelles. Voir database/README.md.")
+        print("  NOTE : 8,8% de bruit pur + 7,4% de noms contamines dans Company")
+        print("  (audit exhaustif du 27/08/2026, bigdata/README.md) — ce chiffre")
+        print("  n'est PAS un compte exact d'entreprises reelles.")
         print(f"Company distinctes (by_acheteur, dedup)       : {n_companies_by_acheteur}")
-        print(f"Lignes market_stats                           : {n_market_rows} (attendu 454)")
+        print(f"Lignes market_stats                           : {n_market_rows}")
 
-        expected_with_company = n_awards_with_company_before - n_awards_affected
-        if (n_awards_total != 454 or n_awards_with_company != expected_with_company
-                or n_market_rows != 454):
-            raise RuntimeError("recoupement echoue — diagnostiquer avant de continuer")
+        # Reference lue en base, jamais figee en constante. Le 454 ecrit ici
+        # jusqu'a present etait exactement le motif que database/crud/counts.py
+        # a ete cree pour supprimer (voir sa docstring) : un correctif amont
+        # deplace ces comptes, et les cinq etages aval echouaient alors non
+        # pas parce qu'un recoupement etait faux, mais parce que la reference
+        # etait perimee. build_features.py avait deja ete converti, pas
+        # celui-ci. Un parquet qui ne correspond plus au nombre d'Award en
+        # base EST perime et doit etre rejoue — ce que le message dit
+        # desormais, au lieu de "diagnostiquer avant de continuer".
+        n_awards_in_db = award_count()
+        print()
+        check_against_database(n_awards_total, n_awards_in_db,
+                               "Award distincts dans fact",
+                               hint="rejouer bigdata/spark/jobs/build_analytics_dataset.py")
+        check_against_database(n_market_rows, n_awards_in_db,
+                               "Lignes market_stats")
+        # Attendu calcule pendant CE run (comptes avant/apres filtre), pas lu
+        # en base : il ne peut pas se perimer, et un ecart signalerait une
+        # incoherence de _drop_implausible_companies(), pas un artefact vieilli.
+        check_against_database(n_awards_with_company,
+                               n_awards_with_company_before - n_awards_affected,
+                               "Award avec compagnie (apres filtre)",
+                               hint="diagnostiquer _drop_implausible_companies()")
         print("\nOK : tous les recoupements confirmes.")
 
         # --- exemple concret avant generalisation ---

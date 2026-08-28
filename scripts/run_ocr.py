@@ -40,17 +40,12 @@ DEFAULT_OUT_DIR = REPO / "data/processed/ocr"
 # their manifest entry stay in place (corpus counts documented elsewhere:
 # etat_de_lart.md, data_dictionary.md, ideas.md — all assume 390 PDF / 400
 # manifest lines, 100/year), only the OCR pass skips them.
-#   65597f99...cf78 : confirmed OSD false positive (methodology.md §1.2) —
-#     page 2 gets rotated 180° incorrectly, destroying an already-legible
-#     page. The document-level confidence crosses the success threshold
-#     anyway (page 1 improved enough to mask it), so it would pass silently.
-#   9d2a5e07...1e1  : its only OCR page is genuinely blank (confirmed:
-#     mean luminosity 254.96/255, std 3.1) — no defect, just nothing to
-#     extract from that page; page 1 (native) already carries the content.
-EXCLUDED_STEMS = {
-    "65597f99d131db2a59fabcab9bb39929f9f1f9f1ff518a1ef60e0ccdb0bfcf78",
-    "9d2a5e0783702e0198d5bdfe23c3212d72fa6501308724cbb85bf03d2b6d01e1",
-}
+#
+# La liste ET la raison de chaque exclusion vivent desormais dans
+# ocr/exclusions.py : source unique, lue aussi par database/crud/documents.py
+# qui inscrit l'exclusion en base (ocr_status=EXCLUDED + ocr_excluded_reason)
+# au lieu de la laisser se deviner a partir d'un NULL.
+from ocr.exclusions import EXCLUDED_STEMS  # noqa: E402
 
 TABLE_KEYWORDS = ("classement", "concurrent 1", "concurrent 2", "montant par",
                   "liste des concurrents")
