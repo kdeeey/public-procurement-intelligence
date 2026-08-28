@@ -42,6 +42,9 @@ import streamlit as st  # noqa: E402
 from sqlalchemy import func, select  # noqa: E402
 from sqlalchemy.orm import Session, joinedload  # noqa: E402
 
+from dashboard.market_view import (  # noqa: E402
+    load_markets, render_market_detail, render_market_list,
+)
 from database.aliases import coverage, load_aliases  # noqa: E402
 from database.crud.session import get_engine, get_session_factory  # noqa: E402
 from database.models import (  # noqa: E402
@@ -141,6 +144,13 @@ def load_companies() -> pd.DataFrame:
         "évaluation partielle": s.partially_evaluated,
         "bruit connu": c.normalized_name in NOISY_NAMES,
     } for c, s, n, m in rows])
+    # Garde-fou : sans risk_score charge, `rows` est vide et le DataFrame n'a
+    # aucune colonne — sort_values("score") levait alors un KeyError qui
+    # faisait planter toute la page, y compris les onglets marche qui ne
+    # dependent pas de cette table. Trouve en executant reellement le
+    # dashboard (streamlit.testing.AppTest), pas en relisant le code.
+    if df.empty:
+        return df
     return df.sort_values("score", ascending=False).reset_index(drop=True)
 
 
@@ -204,8 +214,24 @@ if counts["risk_scores"] == 0:
     st.error("La table `risk_scores` est vide — relancer `ai/risk_score.py` puis "
              "`scripts/load_risk_scores.py`. Les onglets de risque seront vides.")
 
-tab_pipeline, tab_risque, tab_entreprise, tab_qualite = st.tabs(
-    ["🔗 Le pipeline", "⚠️ Risque", "🔍 Une entreprise", "🧪 Qualité des données"])
+# Depuis la refonte du 28/08/2026, l'unite d'analyse est le MARCHE : les deux
+# premiers onglets sont donc les siens, et l'etage entreprise passe apres, en
+# descriptif. Raison mesuree : 180/193 entreprises n'ont qu'un seul marche,
+# donc les "taux" par entreprise etaient des observations uniques deguisees en
+# frequences (voir bigdata/spark/jobs/build_market_features.py).
+(tab_marches, tab_detail, tab_pipeline, tab_risque, tab_entreprise,
+ tab_qualite) = st.tabs(
+    ["📋 Marchés à examiner", "🔎 Détail d'un marché", "🔗 Le pipeline",
+     "⚠️ Risque (entreprise, descriptif)", "🔍 Une entreprise",
+     "🧪 Qualité des données"])
+
+_markets = load_markets()
+
+with tab_marches:
+    render_market_list(_markets)
+
+with tab_detail:
+    render_market_detail(_markets)
 
 # --------------------------------------------------------------------------- #
 with tab_pipeline:
@@ -237,6 +263,15 @@ with tab_pipeline:
 
 # --------------------------------------------------------------------------- #
 with tab_risque:
+    st.warning(
+        "**Cet onglet n'est plus le modèle principal.** Depuis le 28/08/2026, "
+        "la détection se fait au niveau du **marché** (onglets précédents). "
+        "Les scores d'entreprise affichés ici proviennent de l'ancien modèle et "
+        "sont conservés à titre descriptif et comparatif : 180 des 193 "
+        "entreprises n'ayant qu'un seul marché, leurs « taux » étaient des "
+        "observations uniques déguisées en fréquences, et le modèle signalait "
+        "13/13 des entreprises à 2 marchés contre 25/180 de celles à 1 marché — "
+        "il apprenait la profondeur du corpus, pas un comportement.")
     df = load_companies()
     if df.empty:
         st.info("Aucun score de risque chargé.")

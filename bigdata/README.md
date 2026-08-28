@@ -1214,3 +1214,76 @@ GET /companies/999999 -> 404 (pas de risk_score, jamais une reponse
 
 43 tests toujours verts (aucune régression — l'API est un nouveau
 consommateur en lecture, ne touche à aucune table existante).
+
+## Refonte du 28/08/2026 — l'unite d'analyse passe de l'entreprise au marche
+
+Rapport complet et chiffre : [`docs/refonte_marche.md`](../docs/refonte_marche.md),
+regenerable par `python scripts/report_refonte.py --markdown docs/refonte_marche.md`
+(aucun chiffre n'y est ecrit en dur).
+
+### Ce qui a change, en une mesure
+
+    entreprises a 1 marche  : 180/193 (93,3 %) ->  25/180 signalees (13,9 %)
+    entreprises a 2 marches :  13/193          ->  13/13  signalees (100  %)
+
+L'ancien modele apprenait la profondeur de presence dans le corpus, un
+artefact de couverture du scraping. Un "taux" sur une observation unique
+n'est pas un taux.
+
+### Ordre d'execution de la chaine
+
+```bash
+python scripts/run_extraction.py                     # JSON, grain lot
+python scripts/load_database.py --create-schema      # PostgreSQL
+
+# tout le reste dans l'image ppi-spark
+D=postgresql://user:password@postgres:5432/procurement_db
+R="docker run --rm --network public-procurement-intelligence_default \
+     -e DATABASE_URL=$D -v D:/public-procurement-intelligence:/app -w /app ppi-spark"
+
+$R python -m bigdata.spark.jobs.build_analytics_dataset
+$R python -m bigdata.spark.jobs.build_statistics
+$R python -m bigdata.spark.jobs.build_market_features   # NOUVEAU — grain marche
+$R python -m ai.train_market_model                      # NOUVEAU — modele principal
+$R python -m ai.market_red_flags                        # NOUVEAU
+$R python -m ai.market_explain                          # NOUVEAU — SHAP + ablation
+
+# etage entreprise, desormais DESCRIPTIF
+$R python -m bigdata.spark.jobs.build_features
+$R python -m ai.train_isolation_forest
+$R python -m ai.scoring && $R python -m ai.risk_score
+python scripts/load_risk_scores.py                      # depuis l'hote
+```
+
+**`-e DATABASE_URL` est obligatoire** et manquait a la commande documentee
+plus haut dans ce fichier : le conteneur ne lit pas `.env`, il retombait donc
+sur le defaut `localhost`, qui designe le conteneur lui-meme. Symptome :
+`FAILED_JDBC.CONNECTION ... Couldn't connect to the database`.
+
+### Trois defauts trouves en verifiant les sorties, pas en relisant le code
+
+1. **Le modele detectait les trous d'extraction.** Premier Top 10 marche :
+   les marches les plus "atypiques" etaient ceux dont on ne savait rien.
+   Mesure : 7/7 des marches sans aucune information signales (100 %) contre
+   ~6 % quand 2 ou 3 informations existent. Corrige par un seuil de
+   completude (`MIN_DATA_COMPLETENESS = 2`) ; correlation score/completude
+   ramenee de **-0,249 a +0,063**. 35 marches deviennent non scorables et
+   sont affiches comme tels, jamais comme "Faible".
+2. **Une colonne constante dans le modele.** `has_competitor_data` sortait a
+   une importance SHAP exactement nulle : apres le seuil de completude, elle
+   vaut 1 pour les 279 marches retenus. La correlation ne peut pas detecter
+   une constante (elle vaut NaN) — d'ou un controle de variance distinct.
+3. **Un taux d'exclusion arithmetiquement impossible.** 14 marches declarent
+   plus de concurrents ecartes que de soumissionnaires (tous a 1 pour 2-3).
+   C'est une incoherence entre deux rubriques extraites, pas un taux de
+   300 % : RF02 devient non evaluable sur ces marches. Sans ce traitement,
+   le quantile 0,90 de `exclusion_rate` valait exactement 1,000 — un seuil
+   degenere qui ne separait plus rien.
+
+### Ce que la refonte ne corrige pas
+
+Le montant reste absent de 63 % des marches ; l'estimation administrative
+est hors d'atteinte (0/454), donc aucun ecart estimation/attribution n'est
+calculable et le red flag RF04 n'existe pas ; il n'y a **aucune verite
+terrain au niveau marche**, donc la stabilite du modele est mesuree mais sa
+justesse ne peut pas l'etre.
