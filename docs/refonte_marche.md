@@ -254,6 +254,39 @@ Aucune n'est « meilleure » : sans verite terrain on ne mesure que leur accord.
 
 **Le garde-fou sert reellement** : 5 marches auraient ete classes prioritaires sur leur seul score, mais leur confiance est faible — ils sont ramenes a « A surveiller », visibles et avec leur score, presentes pour ce qu'ils sont : un signal sur peu de donnees.
 
+## 7ter. Analyse temporelle (Phase 4)
+
+Annuel uniquement. Chaque taux porte son effectif.
+
+| Annee | Marches | Faible concurrence | Exclusions elevees | Montant median | Atypiques |
+|---|---:|---:|---:|---:|---:|
+| 2023 | 68 | 34.6 % (n=52) | 23.8 % | 637 020 DH (n=27) | 11.1 % |
+| 2024 | 80 | 39.3 % (n=61) | 22.6 % | 593 583 DH (n=26) | 6.8 % |
+| 2025 | 86 | 37.0 % (n=73) | 19.0 % | 591 002 DH (n=46) | 17.7 % |
+| 2026 (tronquee) | 80 | 46.6 % (n=58) | 22.0 % | 842 008 DH (n=43) | 4.1 % |
+
+**Granularite mensuelle refusee** : 239 marches dates sur 22 mois, mediane 4 marches/mois, seulement 7/22 mois atteignent n >= 10. Une serie a 4 observations par point mesurerait du bruit d echantillonnage.
+
+## 7quater. Analyse relationnelle (Phase 5)
+
+**Le volet entreprise du graphe est refuse, sur mesure.** Degre maximum : **2 marches** ; le graphe entreprise-entreprise compte **1 arete**. Un `market_count` par entreprise EST la variable qui produisait 13/13 d anomalies contre 25/180 avant la bascule vers le marche : la recalculer sous le nom de centralite reintroduirait l artefact.
+
+Cote acheteur : **128 acheteurs**, dont **12** ont assez de marches a titulaire identifie (>= 5) pour qu une concentration soit exploitable. Le titulaire n est lu que sur 205/314 marches.
+
+## 7quinquies. Benchmark rule-based (Phase 10)
+
+Methode simple : 1 point par red flag primaire actif, sans ponderation.
+
+| Classement | Communs | Jaccard | Recouvrement | IF seul | Regles seules |
+|---|---:|---:|---:|---:|---:|
+| top10 | 2 | 0.111 | 20.0 % | 8 | 8 |
+| top20 | 3 | 0.081 | 15.0 % | 17 | 17 |
+| top50 | 11 | 0.124 | 22.0 % | 39 | 39 |
+
+Correlation des rangs (Spearman) : **+0.154**.
+
+**Le resultat le plus important de ce benchmark est son faible recouvrement**, et il coupe dans les deux sens : le modele apporte bien quelque chose qu une addition de regles ne donne pas, mais le choix de la methode determine presque entierement quels marches remontent. Sans verite terrain, rien ne permet de dire laquelle a raison.
+
 ## 8. Ce que cette refonte ne corrige pas
 
 - **Le montant reste absent de 63 % des marchés.** L'imputation médiane est signalée (`amount_imputed`), jamais présentée comme une lecture.

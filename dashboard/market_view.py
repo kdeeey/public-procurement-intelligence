@@ -439,3 +439,39 @@ def render_market_detail(df: pd.DataFrame) -> None:
         "ce marché se distingue des autres du corpus, jamais qu'il serait "
         "irrégulier. Sur un Isolation Forest, la grandeur expliquée est une "
         "profondeur d'isolement — ce n'est pas une probabilité.")
+
+    # --- avis de l'analyste (Phase 8) ------------------------------------ #
+    st.markdown("#### Votre avis")
+    from dashboard.feedback import (FALSE_POSITIVE, RELEVANT, STATUS_LABELS,
+                                    TO_REVIEW, load_reviews, upsert_review)
+
+    award_id = int(row["award_id"])
+    existant = load_reviews().get(award_id)
+    if existant:
+        st.info(f"**Avis enregistré : {STATUS_LABELS.get(existant.review_status)}** "
+                f"— {existant.review_timestamp}"
+                + (f"\n\n« {existant.analyst_comment} »" if existant.analyst_comment else ""))
+
+    commentaire = st.text_area(
+        "Commentaire (facultatif)",
+        value=existant.analyst_comment if existant else "",
+        key=f"comment_{award_id}",
+        placeholder="Ce que le PV source dit réellement, ce qui manque…")
+    b1, b2, b3 = st.columns(3)
+    choix = None
+    if b1.button("✅ Pertinent", key=f"ok_{award_id}", use_container_width=True):
+        choix = RELEVANT
+    if b2.button("❌ Faux positif", key=f"fp_{award_id}", use_container_width=True):
+        choix = FALSE_POSITIVE
+    if b3.button("🔍 À examiner", key=f"tr_{award_id}", use_container_width=True):
+        choix = TO_REVIEW
+    if choix:
+        upsert_review(award_id, choix, analyst_comment=commentaire)
+        st.success(f"Avis enregistré : {STATUS_LABELS[choix]}. "
+                   "Il n'entraîne aucune modification du modèle.")
+
+    st.caption(
+        "Cet avis est enregistré dans un fichier versionné et **ne modifie ni le "
+        "modèle, ni les seuils, ni les red flags**. Il servira, quand les avis "
+        "seront assez nombreux, à mesurer un taux de faux positifs et à repérer "
+        "les règles inutiles.")

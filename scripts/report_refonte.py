@@ -27,6 +27,10 @@ BACKUP = REPO / "backups/2026-08-28_pre-market-refactor"
 ANALYTICS = REPO / "data/processed/analytics"
 
 
+def _load_report(nom: str):
+    p = ANALYTICS / nom
+    return json.loads(p.read_text(encoding="utf-8")) if p.exists() else None
+
 def _read(path: Path):
     return pd.read_parquet(path) if path.exists() else None
 
@@ -374,6 +378,72 @@ def main() -> int:
                   f"est faible — ils sont ramenes a « A surveiller », visibles et "
                   f"avec leur score, presentes pour ce qu'ils sont : un signal "
                   f"sur peu de donnees.\n")
+
+    tempo = _load_report("temporal_report.json")
+    if tempo:
+        section(out, "7ter. Analyse temporelle (Phase 4)")
+        out.write("Annuel uniquement. Chaque taux porte son effectif.\n\n")
+        out.write("| Annee | Marches | Faible concurrence | Exclusions elevees | "
+                  "Montant median | Atypiques |\n|---|---:|---:|---:|---:|---:|\n")
+        for a in tempo["annuel"]:
+            tr = " (tronquee)" if a["annee_tronquee"] else ""
+            sb = "—" if a["taux_faible_concurrence"] is None else (
+                f"{100 * a[chr(39)+chr(39)] if False else 100 * a['taux_faible_concurrence']:.1f} %"
+                f" (n={a['n_avec_donnee_concurrence']})")
+            ex = "—" if a["taux_exclusions_elevees"] is None else (
+                f"{100 * a['taux_exclusions_elevees']:.1f} %")
+            mt = "—" if a["montant_median"] is None else (
+                f"{a['montant_median']:,.0f} DH (n={a['n_avec_montant']})".replace(",", " "))
+            at = "—" if a["taux_marches_atypiques"] is None else (
+                f"{100 * a['taux_marches_atypiques']:.1f} %")
+            out.write(f"| {a['annee']}{tr} | {a['n_marches']} | {sb} | {ex} | "
+                      f"{mt} | {at} |\n")
+        m = tempo["mensuel"]
+        out.write(f"\n**Granularite mensuelle refusee** : {m['n_marches_dates']} "
+                  f"marches dates sur {m['n_mois']} mois, mediane "
+                  f"{m['mediane_par_mois']:.0f} marches/mois, seulement "
+                  f"{m['mois_au_dessus_du_minimum']}/{m['n_mois']} mois atteignent "
+                  f"n >= {m['minimum_par_point']}. Une serie a 4 observations par "
+                  f"point mesurerait du bruit d echantillonnage.\n")
+
+    net = _load_report("network_report.json")
+    if net:
+        c = net["cote_entreprise_refuse"]
+        section(out, "7quater. Analyse relationnelle (Phase 5)")
+        out.write(f"**Le volet entreprise du graphe est refuse, sur mesure.** "
+                  f"Degre maximum : **{c['degre_max']} marches** ; le graphe "
+                  f"entreprise-entreprise compte **{c['aretes_entreprise_entreprise']} "
+                  f"arete**. Un `market_count` par entreprise EST la variable qui "
+                  f"produisait 13/13 d anomalies contre 25/180 avant la bascule vers "
+                  f"le marche : la recalculer sous le nom de centralite "
+                  f"reintroduirait l artefact.\n\n")
+        out.write(f"Cote acheteur : **{net['n_acheteurs']} acheteurs**, dont "
+                  f"**{net['n_concentration_exploitable']}** ont assez de marches a "
+                  f"titulaire identifie (>= {net['min_marches_avec_gagnant']}) pour "
+                  f"qu une concentration soit exploitable. Le titulaire n est lu que "
+                  f"sur {net['marches_avec_gagnant_identifie']}/"
+                  f"{net['marches_attribues']} marches.\n")
+
+    bench = _load_report("benchmark_report.json")
+    if bench:
+        section(out, "7quinquies. Benchmark rule-based (Phase 10)")
+        out.write("Methode simple : 1 point par red flag primaire actif, sans "
+                  "ponderation.\n\n")
+        out.write("| Classement | Communs | Jaccard | Recouvrement | IF seul | "
+                  "Regles seules |\n|---|---:|---:|---:|---:|---:|\n")
+        for nom, r in bench["tops"].items():
+            out.write(f"| {nom} | {r['intersection']} | {r['jaccard']} | "
+                      f"{r['recouvrement_pct']} % | "
+                      f"{r['seulement_isolation_forest']} | "
+                      f"{r['seulement_rule_based']} |\n")
+        out.write(f"\nCorrelation des rangs (Spearman) : "
+                  f"**{bench['correlation_spearman']:+.3f}**.\n\n")
+        out.write("**Le resultat le plus important de ce benchmark est son "
+                  "faible recouvrement**, et il coupe dans les deux sens : le "
+                  "modele apporte bien quelque chose qu une addition de regles ne "
+                  "donne pas, mais le choix de la methode determine presque "
+                  "entierement quels marches remontent. Sans verite terrain, rien "
+                  "ne permet de dire laquelle a raison.\n")
 
     section(out, "8. Ce que cette refonte ne corrige pas")
     out.write(

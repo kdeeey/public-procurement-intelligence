@@ -42,6 +42,7 @@ import streamlit as st  # noqa: E402
 from sqlalchemy import func, select  # noqa: E402
 from sqlalchemy.orm import Session, joinedload  # noqa: E402
 
+from dashboard.analyses_view import render_analyses  # noqa: E402
 from dashboard.market_view import (  # noqa: E402
     load_markets, render_market_detail, render_market_list,
 )
@@ -219,9 +220,10 @@ if counts["risk_scores"] == 0:
 # descriptif. Raison mesuree : 180/193 entreprises n'ont qu'un seul marche,
 # donc les "taux" par entreprise etaient des observations uniques deguisees en
 # frequences (voir bigdata/spark/jobs/build_market_features.py).
-(tab_marches, tab_detail, tab_pipeline, tab_risque, tab_entreprise,
- tab_qualite) = st.tabs(
-    ["📋 Marchés à examiner", "🔎 Détail d'un marché", "🔗 Le pipeline",
+(tab_marches, tab_detail, tab_analyses, tab_pipeline, tab_risque,
+ tab_entreprise, tab_qualite) = st.tabs(
+    ["📋 Marchés à examiner", "🔎 Détail d'un marché",
+     "📊 Analyses transversales", "🔗 Le pipeline",
      "⚠️ Risque (entreprise, descriptif)", "🔍 Une entreprise",
      "🧪 Qualité des données"])
 
@@ -232,6 +234,9 @@ with tab_marches:
 
 with tab_detail:
     render_market_detail(_markets)
+
+with tab_analyses:
+    render_analyses(_markets)
 
 # --------------------------------------------------------------------------- #
 with tab_pipeline:
