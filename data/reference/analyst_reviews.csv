@@ -1,0 +1,6 @@
+# Avis d'analystes sur les marches signales (Phase 8).
+# Annotation HUMAINE : ce fichier ne doit jamais etre regenere
+# par le pipeline, et il survit aux rechargements de la base.
+# Il n'alimente AUCUN reentrainement — voir dashboard/feedback.py.
+award_id,review_status,analyst_label,analyst_comment,reviewer,review_timestamp
+326,FALSE_POSITIVE,,,,2026-09-02 19:58:54
