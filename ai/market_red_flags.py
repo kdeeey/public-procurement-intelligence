@@ -260,9 +260,9 @@ REGISTRY: tuple[RedFlag, ...] = (
         id="RF01",
         name="Faible concurrence",
         description=(
-            "Un seul soumissionnaire identifie dans le document. La concurrence "
-            "effective est faible sur ce marche — ce qui peut avoir des causes "
-            "parfaitement legitimes (marche tres specialise, delai court, "
+            "Un seul soumissionnaire identifié dans le document. La concurrence "
+            "effective est faible sur ce marché — ce qui peut avoir des causes "
+            "parfaitement légitimes (marché très spécialisé, délai court, "
             "prestation sur mesure)."),
         severity=Severity.ELEVEE,
         evaluate=_rf01,
@@ -271,9 +271,9 @@ REGISTRY: tuple[RedFlag, ...] = (
         id="RF02",
         name="Exclusions atypiques",
         description=(
-            "La part de concurrents ecartes place ce marche dans le quintile "
-            "superieur du corpus. Une exclusion est une decision motivee de la "
-            "commission ; leur proportion elevee justifie une lecture du PV, "
+            "La part de concurrents écartés place ce marché dans le quintile "
+            "supérieur du corpus. Une exclusion est une décision motivée de la "
+            "commission ; leur proportion élevée justifie une lecture du PV, "
             "jamais une conclusion."),
         severity=Severity.MOYENNE,
         evaluate=_rf02,
@@ -282,20 +282,20 @@ REGISTRY: tuple[RedFlag, ...] = (
         id="RF03",
         name="Montant atypique",
         description=(
-            "Le montant attribue place ce marche dans les 5 % les plus eleves "
-            "du corpus. Un gros marche n'a rien d'anormal en soi : c'est un "
-            "critere de priorisation proportionne a l'enjeu financier."),
+            "Le montant attribué place ce marché dans les 5 % les plus élevés "
+            "du corpus. Un gros marché n'a rien d'anormal en soi : c'est un "
+            "critère de priorisation proportionné à l'enjeu financier."),
         severity=Severity.MOYENNE,
         evaluate=_rf03,
     ),
     RedFlag(
         id="RF05",
-        name="Procedure rare",
+        name="Procédure rare",
         description=(
-            "La procedure de passation est peu frequente dans ce corpus. "
-            "La rarete n'est pas une irregularite : la majorite des cas "
-            "concernes sont des concours d'architecture, une categorie "
-            "reguliere mais peu representee ici."),
+            "La procédure de passation est peu fréquente dans ce corpus. "
+            "La rareté n'est pas une irrégularité : la majorité des cas "
+            "concernés sont des concours d'architecture, une catégorie "
+            "régulière mais peu représentée ici."),
         severity=Severity.FAIBLE,
         evaluate=_rf05,
     ),
@@ -303,9 +303,9 @@ REGISTRY: tuple[RedFlag, ...] = (
         id="RF06",
         name="Signaux multiples",
         description=(
-            "Au moins deux red flags primaires sont actifs simultanement. "
+            "Au moins deux red flags primaires sont actifs simultanément. "
             "C'est la combinaison qui retient l'attention, pas chaque signal "
-            "pris isolement."),
+            "pris isolément."),
         severity=Severity.MOYENNE,
         evaluate=_rf06,
         derived=True,
@@ -414,14 +414,14 @@ def describe(flags: dict[str, bool | None]) -> str:
     non_eval = [FLAGS_BY_ID[k].name for k in PRIMARY_FLAGS if flags.get(k) is None]
 
     if actifs:
-        base = "Signaux observes : " + " ; ".join(actifs) + "."
+        base = "Signaux observés : " + " ; ".join(actifs) + "."
     else:
-        base = "Aucun red flag actif parmi ceux qui ont pu etre evalues."
+        base = "Aucun red flag actif parmi ceux qui ont pu être évalués."
     if non_eval:
-        base += (" Non evaluable(s), faute de donnee lisible dans le document : "
+        base += (" Non évaluable(s), faute de donnée lisible dans le document : "
                  + ", ".join(non_eval) + ".")
     base += (" Ces signaux orientent une analyse humaine ; ils ne constituent "
-             "ni une preuve ni une presomption d'irregularite.")
+             "ni une preuve ni une présomption d'irrégularité.")
     return base
 
 

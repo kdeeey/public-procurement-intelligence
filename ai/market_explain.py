@@ -67,16 +67,16 @@ TOP_K = 3
 # Libelles lisibles par un analyste — le dashboard n'affiche jamais un nom
 # de colonne brut.
 FEATURE_LABELS = {
-    "log_montant_ttc": "montant du marche",
+    "log_montant_ttc": "montant du marché",
     "nb_soumissionnaires": "nombre de soumissionnaires",
-    "nb_concurrents_ecartes": "nombre de concurrents ecartes",
-    "exclusion_rate": "part de concurrents ecartes",
-    "has_amount_data": "disponibilite du montant",
-    "has_competitor_data": "disponibilite de la liste des concurrents",
-    "has_exclusion_data": "disponibilite de la liste des ecartes",
-    "mode_ao_ouvert": "procedure : appel d'offres ouvert",
-    "mode_ao_simplifie": "procedure : appel d'offres simplifie",
-    "mode_autre": "procedure : autre",
+    "nb_concurrents_ecartes": "nombre de concurrents écartés",
+    "exclusion_rate": "part de concurrents écartés",
+    "has_amount_data": "disponibilité du montant",
+    "has_competitor_data": "disponibilité de la liste des concurrents",
+    "has_exclusion_data": "disponibilité de la liste des écartés",
+    "mode_ao_ouvert": "procédure : appel d'offres ouvert",
+    "mode_ao_simplifie": "procédure : appel d'offres simplifié",
+    "mode_autre": "procédure : autre",
     "cat_travaux": "secteur : travaux",
     "cat_fournitures": "secteur : fournitures",
     "cat_services": "secteur : services",
@@ -130,12 +130,12 @@ def build_sentence(tops, imputed_cols: set[str]) -> str:
     for name, value in tops:
         label = FEATURE_LABELS.get(name, name)
         if name in imputed_cols:
-            label += " (valeur imputee, non lue dans le document)"
+            label += " (valeur imputée, non lue dans le document)"
         parts.append(label)
-    return ("Facteurs qui contribuent le plus au score de ce marche, par ordre "
+    return ("Facteurs qui contribuent le plus au score de ce marché, par ordre "
             "de contribution : " + " ; ".join(parts) + ". "
-            "Ces facteurs expliquent la SORTIE DU MODELE, pas une irregularite : "
-            "ils indiquent en quoi ce marche se distingue des autres du corpus.")
+            "Ces facteurs expliquent la SORTIE DU MODÈLE, pas une irrégularité : "
+            "ils indiquent en quoi ce marché se distingue des autres du corpus.")
 
 
 def main() -> int:
