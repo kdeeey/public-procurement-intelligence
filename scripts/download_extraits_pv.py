@@ -2,8 +2,7 @@
 Standalone script: download public "Extrait de PV" PDFs from the PMMP portal,
 filed into per-year folders.
 
-Portal behaviour established by inspecting saved HTML in data/raw/ (see the
-recon notes in docs/discovery_notes.md):
+Portal behaviour established by inspecting saved HTML in data/raw/:
 
   * `&page_courante=N` in the URL is IGNORED — every page returns page 1.
     Real pagination is a PRADO postback: POST the whole form back with

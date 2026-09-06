@@ -3,8 +3,8 @@ Issue 12 — référentiel fiscal SYNTHÉTIQUE, pas des données DGI réelles.
 
 Pourquoi synthétique, par construction et pas par choix : l'ICE et le RC
 des entreprises gagnantes ne sont jamais publiés sur le portail PMMP
-(vérifié sur l'ensemble de l'échantillon, docs/rapport_avancement.md §3 —
-"Limitation confirmée"). Sans identifiant fiscal fiable, aucun croisement
+(vérifié sur l'ensemble de l'échantillon — limitation confirmée). Sans
+identifiant fiscal fiable, aucun croisement
 avec de vraies données DGI n'est possible sur ce projet — le
 regroupement ne peut reposer que sur le nom normalisé de l'entreprise
 (database/normalization.py), déjà notre clé partout ailleurs dans ce
@@ -122,8 +122,7 @@ def main() -> int:
         "# aleatoirement (seed=42), AUCUN lien avec de vraies declarations\n"
         "# DGI. Demontre le mecanisme de croisement marches<->fiscal par nom\n"
         "# d'entreprise normalise, ne le valide pas. Voir\n"
-        "# scripts/generate_fiscal_reference.py et docs/rapport_avancement.md\n"
-        "# Sec 5.3.\n"
+        "# scripts/generate_fiscal_reference.py.\n"
     )
     with open(OUTPUT_PATH, "w", encoding="utf-8", newline="") as f:
         f.write(header_comment)

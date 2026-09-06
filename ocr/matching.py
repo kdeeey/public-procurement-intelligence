@@ -337,10 +337,10 @@ def infer_statut_indices() -> dict[str, dict]:
                 "rubrique de justification par article, pas un rejet (5 faux "
                 "amis dans le corpus)",
             ],
-            # Statut issu de l'exploration manuelle initiale
-            # (discovery_notes.md §2.12), mais AUCUN exemple etiquete dans la
-            # verite terrain : son extraction ne pourra pas etre validee tant
-            # qu'un cas reel n'aura pas ete annote.
+            # Statut issu de l'exploration manuelle initiale, mais AUCUN
+            # exemple etiquete dans la verite terrain : son extraction ne
+            # pourra pas etre validee tant qu'un cas reel n'aura pas ete
+            # annote.
             "confirme_dans_verite_terrain": 0,
         },
     }

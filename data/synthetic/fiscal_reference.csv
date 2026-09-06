@@ -2,8 +2,7 @@
 # aleatoirement (seed=42), AUCUN lien avec de vraies declarations
 # DGI. Demontre le mecanisme de croisement marches<->fiscal par nom
 # d'entreprise normalise, ne le valide pas. Voir
-# scripts/generate_fiscal_reference.py et docs/rapport_avancement.md
-# Sec 5.3.
+# scripts/generate_fiscal_reference.py.
 company_id,company_normalized_name,annee_declaration,chiffre_affaires_declare_dhs,resultat_net_declare_dhs,taux_imposition_effectif,source
 9,SOCETE GHARB VEHICULES INDUSTRIELS,2022,2858000.0,427700.0,0.103,SYNTHETIQUE_DEMO_PAS_DGI
 49,ELEXPERT SARL DE CASABLANCA,2024,569000.0,77100.0,0.148,SYNTHETIQUE_DEMO_PAS_DGI

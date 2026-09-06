@@ -1,7 +1,7 @@
 # Dictionnaire de données — PMMP
 
 > Référence définitive des champs, sources et modèles de données du projet.
-> Basé sur l'exploration manuelle réelle du site (voir [`discovery_notes.md`](discovery_notes.md)) et 25+ documents réels collectés (consultations, PV, résultats définitifs) auprès de plus de 15 acheteurs publics différents.
+> Basé sur l'exploration manuelle réelle du site et 25+ documents réels collectés (consultations, PV, résultats définitifs) auprès de plus de 15 acheteurs publics différents.
 > Remplace les hypothèses initiales du README (§6, §12, §33) là où elles ont été corrigées par l'exploration réelle.
 
 Dernière mise à jour : 22/08/2026
@@ -213,7 +213,7 @@ Tentative d'extraction de texte natif (PyMuPDF)
 
 Confirmé sur l'échantillon réel : les deux cas existent en pratique — le pipeline OCR du README (§11) était donc la bonne conception dès le départ, maintenant validée par des preuves réelles.
 
-**Proportion mesurée (390 extraits de PV, 100 par an sur 2023-2026, 18/08/2026)** : **70,8 % de documents scannés** (276/390) contre 29,2 % de PDF natifs. Une première estimation, faite sur ~25 documents, annonçait l'inverse — elle est corrigée ici et dans [`discovery_notes.md`](discovery_notes.md) §2.11. L'OCR est donc le chemin principal du pipeline, pas un cas de repli : `is_ocr_required = True` sera la valeur dominante en base.
+**Proportion mesurée (390 extraits de PV, 100 par an sur 2023-2026, 18/08/2026)** : **70,8 % de documents scannés** (276/390) contre 29,2 % de PDF natifs. Une première estimation, faite sur ~25 documents, annonçait l'inverse — elle est corrigée ici. L'OCR est donc le chemin principal du pipeline, pas un cas de repli : `is_ocr_required = True` sera la valeur dominante en base.
 
 ---
 
@@ -232,7 +232,7 @@ Confirmé sur l'échantillon réel : les deux cas existent en pratique — le pi
 
 ## 6. Limite confirmée — formulaire d'identification
 
-Pour certaines consultations, télécharger le "Dossier de consultation" redirige vers un formulaire demandant nom, email, raison sociale, ICE auto-déclaré, et l'acceptation des conditions générales. **Le scraper ne remplit jamais ce formulaire** (voir `discovery_notes.md` §2.8 et §4). Ces documents sont marqués `is_publicly_downloadable = False` ; seules les métadonnées déjà en HTML sont conservées.
+Pour certaines consultations, télécharger le "Dossier de consultation" redirige vers un formulaire demandant nom, email, raison sociale, ICE auto-déclaré, et l'acceptation des conditions générales. **Le scraper ne remplit jamais ce formulaire**. Ces documents sont marqués `is_publicly_downloadable = False` ; seules les métadonnées déjà en HTML sont conservées.
 
 ---
 

@@ -1,8 +1,8 @@
 """
 OpenCV preprocessing for scanned PV/résultat pages, ahead of Tesseract.
 
-Strategy confirmed by measurement (not assumption) on the local sample set —
-see docs/discovery_notes.md and the OCR reconnaissance in the Issue 5 thread:
+Strategy confirmed by measurement (not assumption) on the local sample set,
+part of the OCR reconnaissance in the Issue 5 thread:
 
   * Skew on the 18 real scans measured 0.0°-1.1° — essentially none. Deskewing
     unconditionally would add blur for no benefit on the dominant case, so it
@@ -15,9 +15,9 @@ see docs/discovery_notes.md and the OCR reconnaissance in the Issue 5 thread:
   * Denoise + Otsu measured best (88.5 vs 87.6 raw) — the pipeline below.
 
 The 26 local samples are uniformly clean (office-scanned, not phone photos).
-The wider 390-PV corpus may contain worse scans (docs/etat_de_lart.md §3.2
-flags phone-photo quality as a known risk) — the deskew step exists for that
-case even though it rarely fires on what we've measured so far.
+The wider 390-PV corpus may contain worse scans (phone-photo quality is a
+known risk) — the deskew step exists for that case even though it rarely
+fires on what we've measured so far.
 """
 
 from __future__ import annotations

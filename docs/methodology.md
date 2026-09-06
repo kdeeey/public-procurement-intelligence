@@ -1,7 +1,7 @@
 # Méthodologie — décisions techniques et limites mesurées
 
 > Documente les choix qui ne se lisent pas directement dans le code : pourquoi tel paramètre plutôt qu'un autre, quelles limites ont été mesurées plutôt que supposées.
-> Complète [`data_dictionary.md`](data_dictionary.md), [`discovery_notes.md`](discovery_notes.md) et [`ideas.md`](ideas.md).
+> Complète [`data_dictionary.md`](data_dictionary.md) et [`ideas.md`](ideas.md).
 
 Dernière mise à jour : 22/08/2026
 
@@ -37,7 +37,7 @@ Le cas incorrect (7,73) a une confiance **supérieure** aux deux cas corrects (1
 
 ### 1.3 Langue Tesseract — `fra+ara`, pas `fra` seul
 
-Le corpus contient des PV **partiellement ou totalement rédigés en arabe** — pas seulement des en-têtes bilingues (déjà documenté dans `discovery_notes.md` §2.9), mais des pages entières. Avec `lang='fra'` seul, ces pages tombaient à une confiance quasi nulle (0,0 à 30,5), non pas parce que le scan était dégradé mais parce que le modèle de langue ne pouvait pas reconnaître le script.
+Le corpus contient des PV **partiellement ou totalement rédigés en arabe** — pas seulement des en-têtes bilingues, mais des pages entières. Avec `lang='fra'` seul, ces pages tombaient à une confiance quasi nulle (0,0 à 30,5), non pas parce que le scan était dégradé mais parce que le modèle de langue ne pouvait pas reconnaître le script.
 
 **Décision retenue : gérer nativement via `lang='fra+ara'`, ne jamais exclure ces documents du corpus.** Nécessite `ara.traineddata` dans `TESSDATA_PREFIX`. Sur les 7 documents concernés du run de validation, passage de 0,0-30,5 à 62,7-88,9 de confiance, tous récupérés au-dessus du seuil de succès.
 

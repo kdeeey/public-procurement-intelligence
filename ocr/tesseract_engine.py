@@ -23,8 +23,8 @@ import pytesseract
 # RESOLVED (Issue 5, measured 20/08/2026): fra-only produced 6-7 documents in
 # the 390-PV corpus at near-zero confidence (0.0-30.5) — not degraded scans,
 # but pages written entirely or partly in Arabic, decoded with the wrong
-# language model. The corpus is genuinely bilingual (docs/discovery_notes.md
-# §2.9 already flagged bilingual headers; this is full Arabic *pages*, not
+# language model. The corpus is genuinely bilingual (bilingual headers were
+# already flagged during reconnaissance; this is full Arabic *pages*, not
 # just headers). Tesseract decodes multi-language images directly when given
 # more than one model — 'fra+ara' handles both scripts, so mixed-language
 # pages (Arabic intro + French concurrent list, the actual data of interest)

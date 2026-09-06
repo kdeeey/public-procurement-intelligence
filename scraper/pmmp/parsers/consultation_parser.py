@@ -225,8 +225,8 @@ def _extract_dossier_link(soup: BeautifulSoup, result: dict[str, Any]) -> None:
     """Locate the 'dossier de consultation' link and decide downloadability.
 
     A link to EntrepriseDemandeTelechargementDce means the file is gated behind
-    the identification form. We never fill that form (docs/discovery_notes.md
-    §2.8 and §4), so the consultation is flagged and collection continues.
+    the identification form. We never fill that form, so the consultation is
+    flagged and collection continues.
     """
     gated: str | None = None
     for a in soup.find_all("a", href=True):

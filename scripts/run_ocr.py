@@ -38,8 +38,8 @@ DEFAULT_OUT_DIR = REPO / "data/processed/ocr"
 
 # Excluded from every OCR run, by filename stem — the files themselves and
 # their manifest entry stay in place (corpus counts documented elsewhere:
-# etat_de_lart.md, data_dictionary.md, ideas.md — all assume 390 PDF / 400
-# manifest lines, 100/year), only the OCR pass skips them.
+# data_dictionary.md, ideas.md — all assume 390 PDF / 400 manifest lines,
+# 100/year), only the OCR pass skips them.
 #
 # La liste ET la raison de chaque exclusion vivent desormais dans
 # ocr/exclusions.py : source unique, lue aussi par database/crud/documents.py

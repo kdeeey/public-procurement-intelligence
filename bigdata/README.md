@@ -777,12 +777,11 @@ composite qui doit rescaler faute de donnée).
 
 **Synthétique par construction, pas par choix** : l'ICE et le RC des
 entreprises gagnantes ne sont jamais publiés sur le portail PMMP (vérifié
-sur tout l'échantillon, `docs/rapport_avancement.md` Sec 3 — limitation
-déjà actée). Sans identifiant fiscal fiable, le seul rapprochement
-possible est le nom normalisé de l'entreprise — déjà la clé utilisée
-partout ailleurs dans ce pipeline. Décision déjà actée avec
-l'encadrante (`docs/rapport_avancement.md` Sec 5.3) : *"le mécanisme de
-croisement sera démontré, pas validé sur des données réelles"* —
+sur tout l'échantillon — limitation déjà actée). Sans identifiant fiscal
+fiable, le seul rapprochement possible est le nom normalisé de
+l'entreprise — déjà la clé utilisée partout ailleurs dans ce pipeline.
+Décision déjà actée avec l'encadrante : *"le mécanisme de croisement sera
+démontré, pas validé sur des données réelles"* —
 `scripts/generate_fiscal_reference.py` démontre ce mécanisme, il ne le
 valide pas.
 

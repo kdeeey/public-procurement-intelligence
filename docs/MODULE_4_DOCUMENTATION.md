@@ -1752,7 +1752,7 @@ python scripts/report_refonte.py --markdown docs/refonte_marche.md
 ## 27. Défendre le projet — fondements et objections
 
 > Section destinée à la soutenance. Chaque réponse s'appuie sur une mesure
-> faite dans ce projet ou sur une référence de `docs/etat_de_lart.md`.
+> faite dans ce projet ou sur une référence de la revue de littérature.
 
 ### 27.1 Fondements théoriques — trois références, réellement lues
 

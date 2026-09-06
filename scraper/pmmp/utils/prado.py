@@ -7,7 +7,7 @@ POSTing the entire form back — including the opaque PRADO_PAGESTATE returned b
 the previous response — with PRADO_POSTBACK_TARGET naming the control that was
 "clicked".
 
-Portal behaviour established by reconnaissance (see docs/discovery_notes.md):
+Portal behaviour established by reconnaissance:
 
   * `&page_courante=N` in the URL is IGNORED — every page returns page 1.
   * The advanced-search date filters (dateMiseEnLigneCalculeStart/End) and the

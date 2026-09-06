@@ -2,7 +2,7 @@
 
 > Complète `docs/data_dictionary.md` (§2-3) et `docs/issues_backlog.md`.
 > Base scientifique pour les modules 3 et 4 (statistiques, feature engineering, détection d'anomalies).
-> Sources : article Big Data/IA & fiscalité (rapprochement, ratios, scoring — voir `docs/etat_de_lart.md`) + Fazekas, Tóth & King (2016), *"An Objective Corruption Risk Index Using Public Procurement Data"*.
+> Sources : article Big Data/IA & fiscalité (rapprochement, ratios, scoring) + Fazekas, Tóth & King (2016), *"An Objective Corruption Risk Index Using Public Procurement Data"*.
 
 Dernière mise à jour : 19/08/2026
 
@@ -71,7 +71,7 @@ Fazekas et al. (2016) donnent une méthode validée statistiquement (régression
 
 ### Principe directeur (à répéter dans le rapport final)
 
-Le système ne répond jamais à *"ce marché est-il frauduleux ?"* mais à *"ce marché présente-t-il plusieurs caractéristiques statistiquement associées à un risque de corruption dans la littérature scientifique ?"*. Risque élevé ≠ corruption prouvée. C'est un signal pour prioriser l'analyse humaine, jamais une accusation automatisée — cohérent avec le principe directeur déjà énoncé dans `rapport_avancement.md` §1.
+Le système ne répond jamais à *"ce marché est-il frauduleux ?"* mais à *"ce marché présente-t-il plusieurs caractéristiques statistiquement associées à un risque de corruption dans la littérature scientifique ?"*. Risque élevé ≠ corruption prouvée. C'est un signal pour prioriser l'analyse humaine, jamais une accusation automatisée.
 
 ### Tri des red flags Fazekas par disponibilité réelle sur le PMMP
 
