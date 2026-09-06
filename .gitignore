@@ -20,6 +20,16 @@ data/processed/*
 # alloue, pas du contenu : NTFS arrondit chaque petit fichier).
 !data/processed/ocr/
 
+# Exception : les tables analytiques plates (scores, features, red flags)
+# sont versionnees pour que le dashboard deploye (Streamlit Community
+# Cloud, qui clone depuis GitHub sans jamais rejouer le pipeline
+# localement) ait de vraies donnees a afficher. ~2,9 Mo, resultats
+# agreges uniquement, aucun document brut ni donnee source. Les
+# sous-dossiers (sorties brutes PySpark : part-*.parquet, _SUCCESS, .crc)
+# restent exclus : bruit interne, non lus par le dashboard deploye.
+!data/processed/analytics/
+data/processed/analytics/*/
+
 # data/samples/ et data/synthetic/ restent versionnés (petits, curés à la main)
 # EXCEPTION : le corpus des 400 extraits de PV (343 Mo) est scrapé et régénérable
 # via scripts/download_extraits_pv.py — seul son manifeste est versionné, car il
@@ -33,6 +43,13 @@ data/samples/PVs/*
 ai/models/*.pkl
 ai/models/*.joblib
 ai/models/feature_columns.json
+
+# Exception : le modele marche (2,4 Mo), utilise en direct par le scoring
+# a la volee de la page Importation du dashboard deploye. L'ancien modele
+# entreprise (isolation_forest.joblib) reste exclu : obsolete depuis la
+# refonte du 28/08/2026 (voir docs/refonte_marche.md).
+!ai/models/isolation_forest_market.joblib
+!ai/models/market_feature_columns.json
 
 # Docker
 *.log

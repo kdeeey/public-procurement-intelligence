@@ -1,0 +1,41 @@
+{
+  "n_marches": 279,
+  "correlation_spearman": 0.154,
+  "distribution_rule_score": {
+    "0": 156,
+    "1": 97,
+    "2": 25,
+    "3": 1
+  },
+  "tops": {
+    "top10": {
+      "intersection": 2,
+      "jaccard": 0.111,
+      "recouvrement_pct": 20.0,
+      "seulement_isolation_forest": 8,
+      "seulement_rule_based": 8,
+      "score_regles_a_la_frontiere": 2,
+      "marches_ex_aequo_a_la_frontiere": 25
+    },
+    "top20": {
+      "intersection": 3,
+      "jaccard": 0.081,
+      "recouvrement_pct": 15.0,
+      "seulement_isolation_forest": 17,
+      "seulement_rule_based": 17,
+      "score_regles_a_la_frontiere": 2,
+      "marches_ex_aequo_a_la_frontiere": 25
+    },
+    "top50": {
+      "intersection": 11,
+      "jaccard": 0.124,
+      "recouvrement_pct": 22.0,
+      "seulement_isolation_forest": 39,
+      "seulement_rule_based": 39,
+      "score_regles_a_la_frontiere": 1,
+      "marches_ex_aequo_a_la_frontiere": 97
+    }
+  },
+  "verite_terrain": null,
+  "avertissement": "Aucune verite terrain au niveau marche : ce benchmark mesure un recouvrement, jamais une superiorite."
+}

@@ -1,0 +1,32 @@
+{
+  "accord_moyen_top3": 0.607,
+  "n_accord_parfait": 91,
+  "n_marches": 279,
+  "importance_shap": {
+    "mode_ao_ouvert": 0.57707,
+    "nb_concurrents_ecartes": 0.5008,
+    "exclusion_rate": 0.44642,
+    "nb_soumissionnaires": 0.4416,
+    "log_montant_ttc": 0.28161,
+    "cat_fournitures": 0.22601,
+    "has_exclusion_data": 0.19129,
+    "cat_services": 0.1607,
+    "cat_travaux": 0.11697,
+    "has_amount_data": 0.11131,
+    "mode_autre": 0.0781
+  },
+  "importance_ablation": {
+    "nb_soumissionnaires": 0.01305,
+    "nb_concurrents_ecartes": 0.0098,
+    "mode_ao_ouvert": 0.00958,
+    "exclusion_rate": 0.00744,
+    "log_montant_ttc": 0.00678,
+    "has_amount_data": 0.00647,
+    "cat_travaux": 0.00563,
+    "cat_fournitures": 0.00535,
+    "has_exclusion_data": 0.00376,
+    "cat_services": 0.00347,
+    "mode_autre": 0.00154
+  },
+  "min_data_completeness": 2
+}

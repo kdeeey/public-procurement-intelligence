@@ -1,0 +1,40 @@
+{
+  "formule": {
+    "w_anomaly": 0.5,
+    "w_red_flags": 0.5
+  },
+  "seuils": {
+    "p60": 25.643195383734803,
+    "p80": 38.970880963861056,
+    "p90": 54.44829780541699
+  },
+  "formulations_comparees": {
+    "equilibre_50_50": {
+      "correlation_rangs_vs_equilibre": 1.0,
+      "top20_communs_avec_equilibre": 20
+    },
+    "anomalie_dominante_70_30": {
+      "correlation_rangs_vs_equilibre": 0.933,
+      "top20_communs_avec_equilibre": 15
+    },
+    "red_flags_dominants_30_70": {
+      "correlation_rangs_vs_equilibre": 0.969,
+      "top20_communs_avec_equilibre": 14
+    }
+  },
+  "distribution_niveaux": {
+    "Tres prioritaire": 26,
+    "Prioritaire": 25,
+    "A surveiller": 61,
+    "Faible": 167,
+    "Donnees insuffisantes": 35
+  },
+  "distribution_confiance": {
+    "Elevee": 163,
+    "Moyenne": 82,
+    "Insuffisante": 35,
+    "Faible": 34
+  },
+  "n_plafonnes_par_confiance_faible": 5,
+  "n_marches": 314
+}

@@ -1,0 +1,32 @@
+{
+  "candidates": {
+    "0.05": {
+      "n_flagged": 13,
+      "pct": 4.7
+    },
+    "0.1": {
+      "n_flagged": 28,
+      "pct": 10.0
+    },
+    "0.15": {
+      "n_flagged": 42,
+      "pct": 15.1
+    },
+    "auto": {
+      "n_flagged": 62,
+      "pct": 22.2
+    }
+  },
+  "chosen": 0.1,
+  "n_scored": 279,
+  "medians_used_for_imputation": {
+    "log_montant_ttc": 13.465550447556629,
+    "nb_soumissionnaires": 1.0,
+    "nb_concurrents_ecartes": 0.0,
+    "exclusion_rate": 0.0
+  },
+  "dropped_for_redundancy": [
+    "has_competitor_data",
+    "mode_ao_simplifie"
+  ]
+}

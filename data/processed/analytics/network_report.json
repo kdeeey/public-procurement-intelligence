@@ -1,0 +1,19 @@
+{
+  "cote_entreprise_refuse": {
+    "n_entreprises": 193,
+    "degre_max": 2,
+    "distribution_degres": {
+      "1": 180,
+      "2": 13
+    },
+    "marches_avec_groupement": 1,
+    "aretes_entreprise_entreprise": 1,
+    "paires_entreprise_acheteur_repetees": 11,
+    "exploitable": false
+  },
+  "n_acheteurs": 128,
+  "n_concentration_exploitable": 12,
+  "min_marches_avec_gagnant": 5,
+  "marches_avec_gagnant_identifie": 205,
+  "marches_attribues": 314
+}

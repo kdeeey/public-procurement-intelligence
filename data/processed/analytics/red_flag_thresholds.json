@@ -1,0 +1,16 @@
+{
+  "exclusion_rate_seuil": 0.5,
+  "exclusion_rate_quantile": 0.8,
+  "exclusion_rate_n_evaluables": 208,
+  "montant_ttc_seuil": 11746666.133999994,
+  "montant_quantile": 0.95,
+  "montant_n_evaluables": 135,
+  "procedures_rares": [
+    "Appel d'offres avec préselection - Phase 2",
+    "Concours Architectural",
+    "Consultation architecturale ouverte",
+    "Marché négocié avec publicité préalable - Phase 1"
+  ],
+  "procedure_rare_max_share": 0.05,
+  "procedures_rares_n_marches": 6
+}

@@ -1,0 +1,116 @@
+{
+  "annuel": [
+    {
+      "annee": 2023,
+      "annee_tronquee": false,
+      "n_marches": 68,
+      "taux_faible_concurrence": 0.34615384615384615,
+      "n_avec_donnee_concurrence": 52,
+      "taux_exclusions_elevees": 0.23809523809523808,
+      "n_avec_donnee_exclusions": 42,
+      "montant_median": 637020.0,
+      "n_avec_montant": 27,
+      "part_ao_ouvert": 0.8529411764705882,
+      "taux_marches_atypiques": 0.1111111111111111,
+      "n_scorables": 54,
+      "fiable": true
+    },
+    {
+      "annee": 2024,
+      "annee_tronquee": false,
+      "n_marches": 80,
+      "taux_faible_concurrence": 0.39344262295081966,
+      "n_avec_donnee_concurrence": 61,
+      "taux_exclusions_elevees": 0.22641509433962265,
+      "n_avec_donnee_exclusions": 53,
+      "montant_median": 593583.0,
+      "n_avec_montant": 26,
+      "part_ao_ouvert": 0.7875,
+      "taux_marches_atypiques": 0.0684931506849315,
+      "n_scorables": 73,
+      "fiable": true
+    },
+    {
+      "annee": 2025,
+      "annee_tronquee": false,
+      "n_marches": 86,
+      "taux_faible_concurrence": 0.3698630136986301,
+      "n_avec_donnee_concurrence": 73,
+      "taux_exclusions_elevees": 0.19047619047619047,
+      "n_avec_donnee_exclusions": 63,
+      "montant_median": 591002.0,
+      "n_avec_montant": 46,
+      "part_ao_ouvert": 0.5813953488372093,
+      "taux_marches_atypiques": 0.17721518987341772,
+      "n_scorables": 79,
+      "fiable": true
+    },
+    {
+      "annee": 2026,
+      "annee_tronquee": true,
+      "n_marches": 80,
+      "taux_faible_concurrence": 0.46551724137931033,
+      "n_avec_donnee_concurrence": 58,
+      "taux_exclusions_elevees": 0.22,
+      "n_avec_donnee_exclusions": 50,
+      "montant_median": 842008.2,
+      "n_avec_montant": 43,
+      "part_ao_ouvert": 0.7875,
+      "taux_marches_atypiques": 0.0410958904109589,
+      "n_scorables": 73,
+      "fiable": true
+    }
+  ],
+  "ruptures": {
+    "taux_faible_concurrence": [
+      {
+        "de": 2023,
+        "a": 2024,
+        "valeur_avant": 0.34615384615384615,
+        "valeur_apres": 0.39344262295081966,
+        "ecart": 0.04728877679697352,
+        "n_avant": 68,
+        "n_apres": 80
+      },
+      {
+        "de": 2024,
+        "a": 2025,
+        "valeur_avant": 0.39344262295081966,
+        "valeur_apres": 0.3698630136986301,
+        "ecart": -0.02357960925218955,
+        "n_avant": 80,
+        "n_apres": 86
+      }
+    ],
+    "taux_exclusions_elevees": [
+      {
+        "de": 2023,
+        "a": 2024,
+        "valeur_avant": 0.23809523809523808,
+        "valeur_apres": 0.22641509433962265,
+        "ecart": -0.011680143755615435,
+        "n_avant": 68,
+        "n_apres": 80
+      },
+      {
+        "de": 2024,
+        "a": 2025,
+        "valeur_avant": 0.22641509433962265,
+        "valeur_apres": 0.19047619047619047,
+        "ecart": -0.03593890386343218,
+        "n_avant": 80,
+        "n_apres": 86
+      }
+    ]
+  },
+  "mensuel": {
+    "exploitable": false,
+    "n_marches_dates": 239,
+    "n_mois": 22,
+    "mediane_par_mois": 4.0,
+    "mois_au_dessus_du_minimum": 7,
+    "minimum_par_point": 10
+  },
+  "annee_tronquee": 2026,
+  "min_n_par_annee": 20
+}

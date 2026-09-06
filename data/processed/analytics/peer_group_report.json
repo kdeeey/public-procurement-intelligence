@@ -1,0 +1,42 @@
+{
+  "min_peers": 10,
+  "min_peers_per_dimension": 10,
+  "cascade": [
+    {
+      "level": "fin",
+      "keys": [
+        "categorie_principale",
+        "mode_passation",
+        "annee"
+      ]
+    },
+    {
+      "level": "moyen",
+      "keys": [
+        "categorie_principale",
+        "mode_passation"
+      ]
+    },
+    {
+      "level": "large",
+      "keys": [
+        "categorie_principale",
+        "annee"
+      ]
+    },
+    {
+      "level": "tres_large",
+      "keys": [
+        "categorie_principale"
+      ]
+    }
+  ],
+  "levels": {
+    "fin": 255,
+    "moyen": 53,
+    "large": 6
+  },
+  "n_amount_comparisons": 67,
+  "n_competitor_comparisons": 213,
+  "n_markets": 314
+}
