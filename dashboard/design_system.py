@@ -444,6 +444,17 @@ def _css() -> str:
 html, body, [class*="css"] {{ font-family:var(--font-body); color:var(--color-text); }}
 header[data-testid="stHeader"] {{ background:transparent; height:0; }}
 [data-testid="stToolbar"] {{ right:8px; }}
+/* Le bouton qui rouvre la sidebar quand elle est repliee (obligatoire sur
+   mobile, ou elle demarre fermee) vit DANS stHeader — verifie dans le
+   bundle JS du paquet streamlit installe ici (`stExpandSidebarButton`),
+   pas suppose. Le `height:0` ci-dessus le rendait invisible/inaccessible,
+   sans aucun autre moyen d'ouvrir le menu sur un ecran etroit. Sorti du
+   flux et repositionne en fixe, visible quel que soit l'etat du header. */
+[data-testid="stExpandSidebarButton"] {{
+  position:fixed !important; top:10px; left:10px; z-index:999999;
+  visibility:visible !important; opacity:1 !important;
+  background:var(--color-surface) !important; border-radius:var(--radius-md);
+  box-shadow:var(--shadow-sm) !important; }}
 [data-testid="stAppViewBlockContainer"],
 .block-container {{ padding:28px 34px 64px; max-width:1400px; }}
 
