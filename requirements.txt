@@ -38,7 +38,6 @@ shap
 fastapi
 uvicorn[standard]
 pydantic
-pydantic-settings
 
 # Security
 python-jose[cryptography]
