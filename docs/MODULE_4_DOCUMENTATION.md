@@ -360,6 +360,213 @@ comparables portant **la même dimension**. Résultat :
 
 ---
 
+## 7bis. Fiche détaillée de chaque red flag
+
+> Une fiche par règle : définition, formule, données nécessaires, seuil et son
+> origine, comptage réel, interprétation métier et limite. Les exemples
+> chiffrés sont **illustratifs** (construits pour montrer le mécanisme) ; les
+> seuils et les comptages, eux, sont réels.
+
+---
+
+### RF01 — Faible concurrence · sévérité **élevée** (poids 3)
+
+| | |
+|---|---|
+| **Définition** | Le document ne nomme qu'un seul soumissionnaire pour ce lot. |
+| **Formule** | `RF01 = (nb_soumissionnaires ≤ 1)` — **uniquement si** `dq_concurrents == KNOWN` |
+| **Données nécessaires** | `nb_soumissionnaires` (= `number_of_bidders_filtered`, après filtrage des noms implausibles) |
+| **Granularité** | 1 lot (Award) |
+| **Seuil** | **Exactement 1.** Ce n'est pas un quantile : c'est la définition métier du soumissionnaire unique, elle ne se calibre pas. |
+| **Comptage réel** | 96 actifs · 148 inactifs · **70 non évaluables** |
+| **Contexte mesuré** | Sur les 244 marchés évaluables : médiane de **2 soumissionnaires**, 96 marchés (39,3 %) à un seul |
+
+**Interprétation.** C'est l'indicateur le mieux établi de la littérature (le
+*single bidding* de Fazekas & Kocsis, voir §27.1). Une concurrence effective
+faible réduit la pression sur le prix. Elle a cependant des causes
+parfaitement légitimes : marché très spécialisé, délai court, prestation sur
+mesure, faible nombre d'opérateurs qualifiés localement.
+
+**Exemple** *(illustratif)* :
+
+```text
+Marché de travaux, AO ouvert
+  liste des concurrents lue dans le PV : ["ENTREPRISE ALPHA"]
+  nb_soumissionnaires = 1
+  dq_concurrents = KNOWN
+  → RF01 = ACTIF
+```
+
+**Limite — et c'est le correctif majeur de la session.** L'ancienne règle était
+`nb ≤ 1`, or `0 ≤ 1`. Sur 152 déclenchements, **56 (37 %)** venaient d'un
+marché attribué où **aucun nom n'avait pu être lu** — dont 35 où des noms
+figuraient bien dans le document mais avaient tous été rejetés par le filtre
+de plausibilité. Un marché ne peut pas être attribué à personne : ce zéro est
+un défaut d'extraction. La règle est désormais conditionnée à l'état `KNOWN`,
+et ces 56 marchés sont passés en *non évaluable*.
+
+---
+
+### RF02 — Exclusions atypiques · sévérité **moyenne** (poids 2)
+
+| | |
+|---|---|
+| **Définition** | La part de concurrents écartés place ce marché dans le quintile supérieur du corpus. |
+| **Formule** | `exclusion_rate = nb_concurrents_ecartes / nb_soumissionnaires`<br>`RF02 = (exclusion_rate ≥ 0,500)` — **uniquement si** `dq_exclusions == KNOWN` |
+| **Données nécessaires** | Les **deux** : nombre d'écartés **et** nombre de soumissionnaires. Le taux n'existe pas sinon. |
+| **Granularité** | 1 lot |
+| **Seuil** | **0,500** = quantile 0,80 de la population cohérente (208 marchés `KNOWN`) |
+| **Comptage réel** | 45 actifs · 163 inactifs · **106 non évaluables** |
+
+**Interprétation.** Une exclusion est une décision motivée de la commission
+(pièce manquante, offre non conforme, prix jugé excessif). Une proportion
+élevée justifie une **lecture du PV**, jamais une conclusion : une commission
+rigoureuse produit mécaniquement plus d'exclusions qu'une commission laxiste.
+
+**Exemple** *(illustratif)* :
+
+```text
+4 soumissionnaires listés, 2 écartés
+  exclusion_rate = 2 / 4 = 0,50
+  0,50 ≥ 0,500 → RF02 = ACTIF
+```
+
+**Deux limites, toutes deux mesurées.**
+
+1. **Le seuil a d'abord été mal choisi.** Le quantile 0,90 avait été essayé :
+   il vaut **exactement 1,000** sur ce corpus (59,9 % des marchés évaluables
+   sont à 0, puis une queue chargée à 1). Un seuil à « 100 % des concurrents
+   écartés » est dégénéré — il ne sépare plus rien, il recopie une borne. 0,80
+   donne 0,50, mesuré **et** directement interprétable.
+2. **Des marchés déclarent plus d'écartés que de soumissionnaires** (taux > 1),
+   ce qui est arithmétiquement impossible : tous ont 1 concurrent listé pour 2
+   ou 3 écartés. C'est une incohérence entre les deux rubriques extraites.
+   Comptage exact, selon la population considérée : **18 sur les 454 marchés
+   du corpus, dont 14 parmi les 314 marchés attribués** — ce sont ces 14 qui
+   concernent RF02, puisque les red flags ne s'évaluent que sur les marchés
+   attribués.
+   Ces marchés sont marqués `INVALID` et RF02 y devient *non évaluable* —
+   utiliser un taux de 300 % comme signal transformerait un bug d'extraction
+   en red flag.
+
+---
+
+### RF03 — Montant atypique · sévérité **moyenne** (poids 2)
+
+| | |
+|---|---|
+| **Définition** | Le montant attribué est élevé **par rapport à des marchés comparables**. |
+| **Formule** | `RF03 = (montant_ttc ≥ P90 des pairs)` si une comparaison existe<br>sinon `RF03 = (montant_ttc ≥ 11 746 666,13 DH)` — **uniquement si** `dq_montant == KNOWN` |
+| **Données nécessaires** | `montant_ttc` réellement lu (jamais imputé) + le groupe de comparables |
+| **Granularité** | 1 lot |
+| **Seuil de repli** | quantile 0,95 sur les 135 marchés `KNOWN` |
+| **Comptage réel** | 12 actifs · 130 inactifs · **172 non évaluables** |
+| **Référence employée** | **pairs : 67 marchés · corpus : 75 · non évaluable : 172** |
+
+**Interprétation.** Un gros marché n'a rien d'anormal en soi. Ce flag est un
+critère de **priorisation proportionné à l'enjeu financier** : à signal égal,
+un marché de 14 M DH mérite d'être regardé avant un marché de 200 000 DH.
+
+**Exemple** *(illustratif)* :
+
+```text
+Marché de travaux, AO ouvert, 2025 — montant 14 000 000 DH
+  groupe comparable : TRAVAUX × AO ouvert × 2025, 41 comparables
+  P90 du groupe = 3 800 000 DH
+  14 000 000 ≥ 3 800 000 → RF03 = ACTIF (référence : pairs)
+```
+
+**Limite.** La comparaison aux pairs n'est calculable que sur **67 marchés sur
+314** — 63 % du corpus n'a pas de montant extrait, et il faut en plus 10
+comparables portant eux-mêmes un montant. Pour 75 marchés, le flag retombe sur
+le quantile du corpus entier, une référence moins pertinente (un marché de
+travaux et une prestation de services y sont mélangés). La colonne
+`rf03_reference` trace laquelle des deux a servi, marché par marché : ne pas
+la lire laisserait croire que tous les RF03 sont adossés à des comparables.
+
+---
+
+### RF05 — Procédure rare · sévérité **faible** (poids 1)
+
+| | |
+|---|---|
+| **Définition** | La procédure de passation est peu fréquente dans ce corpus. |
+| **Formule** | `RF05 = (mode_passation ∈ procédures représentant < 5 % du corpus)` |
+| **Données nécessaires** | `mode_passation` — renseigné à **100 %** |
+| **Granularité** | 1 lot |
+| **Seuil** | < 5 % du corpus → 4 modalités, **6 marchés** |
+| **Comptage réel** | 6 actifs · 308 inactifs · **0 non évaluable** |
+
+Procédures concernées : *Appel d'offres avec présélection - Phase 2* ·
+*Concours Architectural* · *Consultation architecturale ouverte* ·
+*Marché négocié avec publicité préalable - Phase 1*.
+
+**Interprétation.** Ce flag signale « ce marché n'a pas suivi la voie
+habituelle de ce corpus », rien de plus.
+
+**Limite — à dire franchement.** **La rareté n'est pas une irrégularité.** Sur
+les 6 marchés concernés, **4 sont des concours ou consultations
+d'architecture** : une catégorie parfaitement régulière, simplement peu
+représentée ici. C'est pourquoi sa sévérité est fixée à *faible*. Son rendement
+est le plus faible du registre.
+
+**Observation de robustesse.** Les seuils à 5 % et à 2 % désignent
+**exactement le même ensemble** : la distribution est franchement bimodale
+(2 procédures couvrent 98,1 % des marchés). Le choix de la valeur ne change
+rien — ce qui est en soi un résultat.
+
+---
+
+### RF06 — Signaux multiples · sévérité **moyenne** · **DÉRIVÉ**
+
+| | |
+|---|---|
+| **Définition** | Au moins deux red flags **primaires** sont actifs simultanément. |
+| **Formule** | `RF06 = (nombre de flags primaires actifs ≥ 2)`<br>*non évaluable* si moins de 2 flags primaires ont pu être évalués |
+| **Granularité** | 1 lot |
+| **Comptage réel** | 26 actifs · 263 inactifs · **25 non évaluables** |
+
+**Interprétation.** C'est la **combinaison** qui retient l'attention, pas
+chaque signal isolé. Un marché à soumissionnaire unique **et** à montant
+atypique appelle une lecture plus urgente qu'un marché qui ne présente qu'un
+seul de ces traits.
+
+**Pourquoi il ne se compte jamais lui-même.** RF06 est exclu de
+`red_flag_count` et de `red_flag_score`. L'y inclure faisait passer un marché
+à 2 flags pour un marché à 3 — symptôme observé : la répartition sautait de 1
+à 3, **aucun marché n'affichait exactement 2 flags actifs**. Le défaut a été
+trouvé en lisant la distribution, pas le code.
+
+**Pourquoi « non évaluable » quand moins de 2 primaires sont évaluables.**
+« 0 signal sur 1 règle applicable » ne dit pas la même chose que « 0 signal
+sur 4 ».
+
+---
+
+### Synthèse — le score de red flags
+
+```text
+red_flag_score = 100 × Σ(poids des flags primaires ACTIFS)
+                     / Σ(poids des flags primaires ÉVALUABLES)
+```
+
+Poids : RF01 = 3 · RF02 = 2 · RF03 = 2 · RF05 = 1.
+
+Le rescale sur les seules règles **évaluables pour ce marché** évite qu'un
+marché dont la moitié des règles est inapplicable soit mécaniquement plafonné
+par notre propre manque de données.
+
+**Exemple** *(illustratif)* :
+
+```text
+RF01 ACTIF (3) · RF02 non évaluable · RF03 ACTIF (2) · RF05 inactif (1)
+  actifs     = 3 + 2 = 5
+  évaluables = 3 + 2 + 1 = 6
+  red_flag_score = 100 × 5 / 6 = 83,3
+```
+
+---
+
 ## 8. Features ML
 
 ### 8.1 Les 11 features réellement en entrée du modèle
@@ -921,6 +1128,161 @@ MARCHÉ FICTIF « M-DEMO » — travaux, AO ouvert, 2025
 
 ---
 
+## 18bis. Analyses transversales
+
+> Trois analyses qui ne portent pas sur un marché en particulier. Elles
+> **n'alimentent pas le modèle** : ce sont des lectures de contexte, et deux
+> d'entre elles sont surtout intéressantes par ce qu'elles **refusent** de
+> produire.
+
+### 18bis.1 Analyse temporelle — annuel seulement
+
+**Fichier** : `ai/market_temporal_analysis.py` · **Sortie** :
+`market_temporal.parquet` (4 lignes × 14 colonnes)
+
+| Année | Marchés | Faible concurrence | Exclusions élevées | Montant médian | Marchés atypiques |
+|---|---:|---:|---:|---:|---:|
+| 2023 | 68 | **34,6 %** (n=52) | 23,8 % | 637 020 DH (n=27) | 11,1 % |
+| 2024 | 80 | **39,3 %** (n=61) | 22,6 % | 593 583 DH (n=26) | 6,8 % |
+| 2025 | 86 | **37,0 %** (n=73) | 19,0 % | 591 002 DH (n=46) | 17,7 % |
+| **2026 ⚠️ tronquée** | 80 | **46,6 %** (n=58) | 22,0 % | 842 008 DH (n=43) | 4,1 % |
+
+**Chaque taux porte son effectif.** Un taux calculé sur 27 marchés et le même
+taux sur 73 ne se lisent pas de la même façon — c'est pourquoi le dénominateur
+est publié partout plutôt que résumé.
+
+**Évolutions, années pleines uniquement :**
+
+```text
+2023 → 2024 :  34,6 % → 39,3 %   (écart +4,7 points, n=68 puis 80)
+2024 → 2025 :  39,3 % → 37,0 %   (écart −2,4 points, n=80 puis 86)
+```
+
+**Aucun test statistique de rupture n'est appliqué** : avec trois années
+pleines, aucun n'aurait de puissance. On rapporte l'écart brut et les deux
+effectifs, et on laisse l'analyste juger. Conclusion honnête : **rien de
+notable à signaler** sur la période — la faible concurrence oscille autour de
+35-39 % sans tendance nette.
+
+> ⚠️ **2026 est une année tronquée** : la collecte s'arrête en août. Ses 80
+> marchés ne couvrent pas douze mois, et son taux de 46,6 % **ne se compare
+> pas** aux années pleines. Elle est exclue de tout calcul d'évolution.
+
+**Granularité mensuelle — REFUSÉE, et c'est mesuré :**
+
+```text
+239 marchés datés, répartis sur 22 mois
+médiane : 4 marchés/mois
+mois atteignant n ≥ 10 : 7 sur 22
+```
+
+Une série temporelle à 4 observations par point mesurerait du bruit
+d'échantillonnage présenté comme une tendance. Le comptage est publié, la
+série ne l'est pas.
+
+**Ce n'est pas un retour des anciennes features temporelles.** Celles-ci
+(`single_bidder_rate_trend_slope`, `number_of_awards_trend_slope`) étaient
+calculées **par entreprise**, sur 3 entreprises seulement (3/193 avaient les
+≥ 2 points annuels requis). Ici l'agrégation est **au niveau du corpus**, sur
+68 à 86 marchés par point. Aucune feature produite ici n'entre dans le modèle.
+
+### 18bis.2 Analyse relationnelle — côté acheteur uniquement
+
+**Fichier** : `ai/network_analysis.py` · **Sortie** : `acheteur_network.parquet`
+(128 lignes × 12 colonnes)
+
+**Le volet entreprise du graphe est refusé, et le refus est mesuré :**
+
+```text
+degré des entreprises   : 180 à 1 marché, 13 à 2 marchés, MAXIMUM = 2
+marchés à ≥ 2 entreprises (groupement) : 1
+  → le graphe entreprise ↔ entreprise compte UNE arête
+paires (entreprise, acheteur) répétées : 11, toutes à exactement 2
+```
+
+Trois conséquences :
+
+1. « Entreprise apparaissant sur beaucoup de marchés » **n'existe pas** :
+   aucune n'atteint 3. La métrique serait un booléen 1-ou-2 déguisé en degré.
+2. Il n'y a **pas de structure** à analyser entre entreprises : une arête.
+3. Surtout, un `market_count` par entreprise **est exactement la variable**
+   dont ce projet a démontré qu'elle produisait 13/13 d'anomalies contre
+   25/180 (§19.1). La recalculer sous le nom de « centralité » réintroduirait
+   par la porte de derrière l'artefact que la bascule vers le marché a
+   éliminé.
+
+**Le côté acheteur, lui, porte une vraie structure :**
+
+| | Valeur |
+|---|---|
+| Acheteurs distincts | **128** |
+| Marchés par acheteur | médiane 1, maximum 25 |
+| Acheteurs avec ≥ 5 marchés | 19 |
+| Acheteurs avec ≥ 10 marchés | 5 |
+| **Concentration exploitable** | **12 / 128** |
+
+La concentration n'est publiée que pour les acheteurs ayant au moins 5 marchés
+**à titulaire identifié** — le gagnant n'est lu que sur 205/314 marchés, et une
+concentration calculée sur 2 marchés identifiés sur 12 ne mesure rien.
+
+Indice utilisé : Herfindahl sur les parts de marchés attribués à chaque
+titulaire identifié (1,0 = un seul titulaire, proche de 0 = très dispersé).
+**Maximum observé : 0,28** — aucune situation de monopole dans le corpus.
+
+> **Une concentration élevée n'est pas une entente.** Elle a des causes
+> ordinaires avant d'en avoir d'extraordinaires : marché local étroit,
+> spécialité technique, faible nombre d'opérateurs qualifiés. Vocabulaire
+> employé : *concentration*, *relation atypique*, *structure relationnelle
+> inhabituelle*. Jamais « réseau de corruption ».
+
+### 18bis.3 Benchmark — Isolation Forest face à une méthode simple
+
+**Fichier** : `ai/benchmark_rulebased.py` · **Sortie** :
+`benchmark_rulebased.parquet` (279 lignes)
+
+**La méthode simple** : 1 point par red flag primaire actif, sans pondération.
+
+```text
+rule_score = RF01 + RF02 + RF03 + RF05     (chacun 0 ou 1)
+```
+
+Volontairement plus fruste que `red_flag_score` : une baseline doit rester une
+baseline. Distribution obtenue : 156 marchés à 0 point · 97 à 1 · 25 à 2 ·
+1 à 3.
+
+**Recouvrement des deux classements :**
+
+| Classement | Communs | Jaccard | Recouvrement | Vus par IF seul | Vus par les règles seules |
+|---|---:|---:|---:|---:|---:|
+| Top 10 | 2 | 0,111 | 20,0 % | 8 | 8 |
+| Top 20 | 3 | **0,081** | 15,0 % | 17 | 17 |
+| Top 50 | 11 | 0,124 | 22,0 % | 39 | 39 |
+
+**Corrélation des rangs (Spearman) : +0,154.**
+
+**Ce que ce résultat signifie — et il coupe dans les deux sens.**
+
+- ✅ **Isolation Forest apporte bien quelque chose** qu'une addition de règles
+  ne donne pas : 17 marchés sur 20 de son Top 20 ne seraient jamais remontés
+  par les règles. Ce sont des **combinaisons inhabituelles** qu'aucune règle
+  nommée ne couvre — c'est précisément l'apport d'un modèle non supervisé.
+- ⚠️ **Mais le choix de la méthode détermine presque entièrement quels marchés
+  remontent.** Avec un recouvrement de 8 %, dire « le modèle a raison » serait
+  arbitraire.
+
+**Ce que ce benchmark n'établit PAS.** Aucune vérité terrain n'existe au
+niveau marché. **Ni l'une ni l'autre des deux méthodes n'est déclarée
+correcte.** Ce qui est mesuré, c'est leur complémentarité — et elle justifie
+de garder les deux, pas de choisir.
+
+**Limite de méthode.** Le score de règles ne prend que 4 valeurs distinctes :
+les ex æquo à la frontière d'un Top N (25 marchés pour le Top 20) sont
+départagés de façon déterministe mais **arbitraire**. Un « classement »
+rule-based est donc en partie une illusion de classement, et ce nombre est
+publié pour que la limite reste visible.
+
+---
+
 ## 19. CE QUI A CHANGÉ AUJOURD'HUI
 
 ### 19.1 Changement structurant — l'unité d'analyse
@@ -1387,6 +1749,93 @@ python scripts/report_refonte.py --markdown docs/refonte_marche.md
 
 ---
 
+## 27. Défendre le projet — fondements et objections
+
+> Section destinée à la soutenance. Chaque réponse s'appuie sur une mesure
+> faite dans ce projet ou sur une référence de `docs/etat_de_lart.md`.
+
+### 27.1 Fondements théoriques — trois références, réellement lues
+
+**Fazekas & Kocsis (2020)** — *Uncovering High-Level Corruption:
+Cross-National Objective Corruption Risk Indicators Using Public Procurement
+Data*, British Journal of Political Science, 50(1), 155-164.
+
+Construisent un indicateur composite (CRI) à partir de signaux objectifs
+extractibles des données de passation : **taux de soumissionnaire unique**,
+absence d'appel d'offres publié, procédure restreinte, période d'avis courte.
+Étude sur **2,8 millions de contrats, 28 pays européens, 2009-2014**, avec un
+score **équipondéré**, validé par corrélation avec des indices externes.
+
+→ **Ce que nous en tirons** : notre RF01 est l'équivalent direct de leur
+*single bidding*, l'indicateur le mieux établi. Et notre choix de **poids
+égaux** (dans `red_flag_score` comme dans le Priority Score) suit leur méthode,
+pas une intuition.
+
+**Kehler & Paciello (2020)** — *Anomaly Detection in Public Procurements using
+the Open Contracting Data Standard*, CEUR Workshop Proceedings, Vol. 2369.
+
+Appliquent **Isolation Forest** à des marchés publics du Paraguay, pour
+produire un score par contrat destiné à orienter un **échantillonnage** de
+contrôle. **Sans étiquettes de fraude confirmées.**
+
+→ **Ce que nous en tirons** : c'est le travail le plus proche du nôtre — même
+algorithme, même absence de vérité terrain, même finalité (orienter un contrôle
+humain, pas décider). Notre différence : le PMMP ne publie pas de données
+structurées, il faut une chaîne **OCR + extraction** en amont, absente de leur
+contexte.
+
+**Liu, Ting & Zhou (2008)** — *Isolation Forest*, ICDM, pp. 413-422.
+
+L'algorithme original : isoler les observations atypiques par partitionnement
+aléatoire, sans modèle de distribution préalable ni données étiquetées.
+
+### 27.2 Pourquoi un apprentissage non supervisé ?
+
+**Parce qu'aucune alternative n'est disponible.** Un modèle supervisé exige des
+exemples étiquetés : des marchés dont on sait qu'ils étaient irréguliers.
+**Nous n'en avons aucun** — et personne ne nous en fournira, puisque ces
+décisions relèvent d'enquêtes judiciaires non publiques.
+
+Prétendre faire du supervisé imposerait de **fabriquer** des étiquettes, par
+exemple en décrétant que les marchés à soumissionnaire unique sont
+« frauduleux ». Le modèle apprendrait alors notre propre règle, et sa
+« performance » ne mesurerait que sa capacité à la reproduire.
+
+### 27.3 Pourquoi Isolation Forest, et pas autre chose ?
+
+| Méthode | Pourquoi écartée / retenue |
+|---|---|
+| **Isolation Forest** ✅ | Ne suppose aucune distribution, supporte les colonnes hétérogènes (montants, comptages, indicatrices), robuste en petite dimension (11 features), **et** rend un score continu exploitable. Précédent direct sur le même problème (Kehler & Paciello). |
+| Local Outlier Factor (LOF) | Repose sur une densité locale, sensible au choix du voisinage — difficile à justifier avec 279 observations. |
+| Autoencodeur | Exige beaucoup plus de données que 279 lignes ; l'erreur de reconstruction serait dominée par le bruit. |
+| Règles seules (CRI) | Implémentées **aussi** (nos red flags), mais ne peuvent capter que ce qu'on a nommé à l'avance. Le benchmark (§18bis.3) montre 17 marchés sur 20 qu'elles ne voient pas. |
+| Classification supervisée | Impossible : aucune étiquette (§27.2). |
+
+### 27.4 Objections probables du jury — et réponses chiffrées
+
+| Objection | Réponse |
+|---|---|
+| *« Comment savez-vous que vos anomalies sont de vraies fraudes ? »* | Nous ne le savons pas, et le système ne le prétend jamais. Il produit une **priorité d'analyse**. Sans vérité terrain, aucune précision ni rappel n'est calculable — c'est écrit dans le code, les tests et la documentation. |
+| *« Votre modèle est-il fiable ? »* | Nous ne pouvons pas mesurer sa justesse, mais nous mesurons sa **stabilité** : 10 réentraînements, recouvrement Jaccard **0,81** entre Top 20, **14 marchés présents dans les 10/10**. Un marché instable est signalé comme tel. |
+| *« Pourquoi 28 marchés signalés et pas 50 ? »* | `contamination = 0,10` est un **curseur de charge de travail**, pas une mesure. Quatre valeurs ont été comparées (4,7 % / 10 % / 15 % / 22,2 %). Le faire varier change la longueur de la liste, **jamais l'ordre**. |
+| *« Vos seuils sont-ils arbitraires ? »* | Non : ils sont **mesurés sur la distribution** et régénérés à chaque exécution. Exemple : le quantile 0,90 de `exclusion_rate` a été essayé et vaut exactement 1,000 — dégénéré. Nous sommes descendus à 0,80, qui donne 0,50. |
+| *« 63 % de montants manquants, votre analyse tient-elle ? »* | C'est la limite dominante, et elle est affichée à l'écran. Les valeurs manquantes sont **imputées à la médiane avec un drapeau**, jamais à 0. Et 35 marchés trop incomplets ne sont **pas scorés du tout**. |
+| *« Un marché sans données pourrait-il être signalé à tort ? »* | C'est arrivé, nous l'avons mesuré et corrigé. Première version : 7/7 des marchés sans aucune information étaient signalés (100 %). Après la porte de complétude, la corrélation score/complétude passe de **−0,249 à +0,063**. |
+| *« Pourquoi avoir abandonné l'analyse par entreprise ? »* | Parce qu'elle mesurait un artefact de collecte. 93,3 % des entreprises n'ont qu'un marché ; le modèle signalait **13/13** des entreprises à 2 marchés contre **25/180** de celles à 1 marché. Il apprenait la profondeur du corpus, pas un comportement. |
+| *« SHAP prouve-t-il qu'un marché est irrégulier ? »* | Non. Sur un Isolation Forest, SHAP explique une **profondeur d'isolement**, pas une probabilité. Il explique le **modèle**, pas le monde : une feature mal extraite produirait une explication cohérente d'un score faux. Un contrôle indépendant par ablation l'accompagne (accord 0,607 sur le Top 3). |
+| *« Vos red flags sont-ils validés ? »* | Leur **calcul** est testé (18 tests). Leur **pertinence métier** ne l'est pas : aucun avis d'analyste n'a encore été collecté. Le mécanisme de recueil existe, sans boucle de retour vers le modèle. |
+| *« Pourquoi ne pas avoir fait d'analyse de réseau entre entreprises ? »* | Parce que le graphe est vide : degré maximum **2**, **une seule arête** entreprise↔entreprise. Et la calculer réintroduirait l'artefact décrit plus haut. |
+| *« Une méthode simple ne suffirait-elle pas ? »* | Elle est implémentée et comparée. Recouvrement **Jaccard 0,081** sur le Top 20 : le modèle voit 17 marchés sur 20 que les règles ne voient pas. Mais sans vérité terrain, nous ne prétendons pas qu'il a raison — les deux sont conservées. |
+| *« Que se passe-t-il si les données s'améliorent ? »* | Tous les seuils, médianes et listes de features sont **recalculés à chaque exécution**. Aucun n'est écrit en dur — c'est une leçon payée : un contrôle `if n_companies != 200` avait fait échouer cinq étages du pipeline quand la table est passée à 193. |
+
+### 27.5 La phrase à retenir
+
+> **Ce système ne dit pas qu'un marché est frauduleux. Il dit qu'un marché
+> présente des caractéristiques atypiques par rapport aux autres marchés du
+> corpus, il nomme lesquelles, il indique la qualité des données sur
+> lesquelles il s'appuie, et il laisse la décision à l'analyste.**
+
+---
 ## CHANGELOG — SESSION DU 28/08/2026
 
 ### Ajouté
