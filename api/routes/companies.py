@@ -1,5 +1,11 @@
 """
-GET /companies, /companies/{id}, /companies/ranking.
+GET /companies, /companies/{id}.
+
+Une Company n'a plus de score propre depuis la refonte du 28/08/2026
+(docs/refonte_marche.md) : l'unite d'analyse est le marche (Award), pas
+l'entreprise. Le classement/scoring vit desormais dans api/routes/awards.py
+(MarketScore) — cette route expose seulement l'identite d'une entreprise
+et la liste de ses marches, chacun portant son propre score.
 
 Award.acheteur_public/objet are schema columns extraction/fields.py never
 populates (see database/models/award.py's docstring) — the real values
@@ -13,13 +19,13 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session, joinedload
 
 from api.dependencies import get_db
-from api.schemas import AwardSummary, CompanyDetail, CompanySummary, RankingResponse, _split_active_flags
-from database.models import Award, Company, RiskScore
+from api.schemas import AwardSummary, CompanyDetail, CompanySummary, MarketScoreSummary
+from database.models import Award, Company, MarketScore
 
 router = APIRouter(prefix="/companies", tags=["companies"])
 
 
-def _to_award_summary(award: Award) -> AwardSummary:
+def _to_award_summary(award: Award, score: MarketScore | None) -> AwardSummary:
     procurement = award.procurement
     return AwardSummary(
         id=award.id,
@@ -31,65 +37,31 @@ def _to_award_summary(award: Award) -> AwardSummary:
         date_ouverture_plis=award.date_ouverture_plis,
         acheteur_public=procurement.acheteur_public if procurement else None,
         objet=procurement.objet if procurement else None,
-    )
-
-
-def _to_company_summary(company: Company, score: RiskScore) -> CompanySummary:
-    return CompanySummary(
-        id=company.id,
-        normalized_name=company.normalized_name,
-        final_score=score.final_score,
-        risk_level=score.risk_level.value,
-        dominant_driver=score.dominant_driver,
-        n_active_flags=score.n_active_flags,
+        score=MarketScoreSummary.model_validate(score) if score else None,
     )
 
 
 @router.get("", response_model=list[CompanySummary])
-def list_companies(db: Session = Depends(get_db)):
-    """Sans risk_score (pas encore rechargee, ai/risk_score.py pas encore
-    execute) une Company n'apparait pas ici — jamais un score fabrique a
-    la place d'une valeur manquante."""
-    rows = db.query(Company, RiskScore).join(RiskScore, RiskScore.company_id == Company.id).all()
-    return [_to_company_summary(c, s) for c, s in rows]
-
-
-@router.get("/ranking", response_model=RankingResponse)
-def ranking(
-    limit: int = Query(20, ge=1, le=200),
+def list_companies(
+    limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
 ):
-    """Trie par final_score decroissant (le plus anormal en premier) —
-    le signal Isolation Forest fait autorite pour le classement, voir
-    ai/risk_score.py pour l'articulation avec le score composite."""
-    query = db.query(Company, RiskScore).join(RiskScore, RiskScore.company_id == Company.id)
-    total = query.count()
-    rows = query.order_by(RiskScore.final_score.desc(), Company.id).offset(offset).limit(limit).all()
-    return RankingResponse(
-        limit=limit, offset=offset, total=total,
-        items=[_to_company_summary(c, s) for c, s in rows],
-    )
+    companies = db.query(Company).order_by(Company.id).offset(offset).limit(limit).all()
+    return [CompanySummary.model_validate(c) for c in companies]
 
 
 @router.get("/{company_id}", response_model=CompanyDetail)
 def company_detail(company_id: int, db: Session = Depends(get_db)):
-    row = (
-        db.query(Company, RiskScore)
-        .join(RiskScore, RiskScore.company_id == Company.id)
-        .filter(Company.id == company_id)
-        .one_or_none()
-    )
-    if row is None:
-        raise HTTPException(
-            status_code=404,
-            detail="Company introuvable ou sans risk_score charge (voir scripts/load_risk_scores.py)")
-    company, score = row
+    company = db.query(Company).filter(Company.id == company_id).one_or_none()
+    if company is None:
+        raise HTTPException(status_code=404, detail="Company introuvable")
 
-    awards = (
-        db.query(Award)
+    rows = (
+        db.query(Award, MarketScore)
         .options(joinedload(Award.procurement))
         .join(Award.companies)
+        .outerjoin(MarketScore, MarketScore.award_id == Award.id)
         .filter(Company.id == company_id)
         .all()
     )
@@ -97,13 +69,5 @@ def company_detail(company_id: int, db: Session = Depends(get_db)):
     return CompanyDetail(
         id=company.id,
         normalized_name=company.normalized_name,
-        final_score=score.final_score,
-        risk_level=score.risk_level.value,
-        dominant_driver=score.dominant_driver,
-        n_active_flags=score.n_active_flags,
-        n_evaluable_flags=score.n_evaluable_flags,
-        active_flags=_split_active_flags(score.active_flags),
-        partially_evaluated=score.partially_evaluated,
-        explanation=score.explanation,
-        awards=[_to_award_summary(a) for a in awards],
+        awards=[_to_award_summary(a, s) for a, s in rows],
     )

@@ -10,7 +10,7 @@ from database.models.company import Company, award_companies
 from database.models.document import Document, JoinStatus, OcrStatus
 from database.models.procurement import AnneeSource, CategoriePrincipale, Procurement
 from database.models.award import Award, MontantBaseAffichee, Statut
-from database.models.risk_score import RiskLevel, RiskScore
+from database.models.market_score import MarketScore
 
 __all__ = [
     "Base",
@@ -25,6 +25,5 @@ __all__ = [
     "Document",
     "OcrStatus",
     "JoinStatus",
-    "RiskScore",
-    "RiskLevel",
+    "MarketScore",
 ]

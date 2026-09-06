@@ -17,12 +17,15 @@ systeme signale des caracteristiques, il ne conclut pas.
 
 RAPPORT AUX AUTRES APPLICATIONS DU DEPOT
 ------------------------------------------
-`dashboard/app.py` (demonstration a 7 onglets, incluant l'etage entreprise
-deprecie et les analyses transversales) et `dashboard/validation_app.py`
-(page de controle interne) restent en place, inchangees. Cette application
-couvre le perimetre de la maquette : les cinq pages du brief produit, sans
-la page entreprise ni la page benchmark, que `dashboard.md` Sec 12 exclut
-explicitement de la conception.
+`dashboard/validation_app.py` (page de controle interne) reste en place,
+inchangee. `dashboard/app.py` (l'ancienne demonstration a 7 onglets,
+incluant l'etage entreprise) et `dashboard/test_dashboard.py` ont ete
+retires : ils dependaient de RiskScore (score par entreprise), supprime
+avec la bascule complete vers MarketScore (score par marche) — voir
+docs/refonte_marche.md. Cette application couvre le perimetre de la
+maquette : les cinq pages du brief produit, sans la page entreprise ni la
+page benchmark, que `dashboard.md` Sec 12 exclut explicitement de la
+conception.
 
 TOUTES LES VALEURS VIENNENT DES ARTEFACTS REELS
 -------------------------------------------------
