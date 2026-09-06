@@ -1,6 +1,6 @@
 # Backlog — Issues GitHub
 
-> Découpage du planning 15 jours (README §50) en tâches concrètes, basées sur les champs et sources confirmés dans [`data_dictionary.md`](data_dictionary.md).
+> Découpage du planning (README §50) en tâches concrètes, basées sur les champs et sources confirmés dans [`data_dictionary.md`](data_dictionary.md).
 > À créer manuellement dans l'onglet **Issues** du repo (pas de `gh` CLI installé) — copier titre + description pour chaque issue ci-dessous.
 
 ---

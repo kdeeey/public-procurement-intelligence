@@ -1,6 +1,6 @@
 # PMMP — Analyse des marchés publics marocains
 
-> **Projet académique — prototype en 15 jours.** Non déployé, à but pédagogique.
+> **Projet académique — prototype.** Non déployé, à but pédagogique.
 
 454 marchés publics marocains collectés depuis le
 [Portail Marocain des Marchés Publics](https://www.marchespublics.gov.ma/),
@@ -137,7 +137,7 @@ docker compose up
 | Scoring (Isolation Forest), red flags, SHAP | ✅ implémentés |
 | API FastAPI (lecture seule) | ✅ implémentée |
 | Dashboard Streamlit | ✅ implémenté (4 pages) |
-| Authentification API (JWT) | ⏳ scaffoldée, hors scope du prototype 15 jours |
+| Authentification API (JWT) | ⏳ scaffoldée, hors scope actuel |
 | Stockage documentaire MinIO | ⏳ prévu (backlog Issue 4), pas encore intégré |
 
 Détail par Issue : [`docs/issues_backlog.md`](docs/issues_backlog.md).

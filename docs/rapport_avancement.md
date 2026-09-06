@@ -1,7 +1,7 @@
 # Cahier des charges & état d'avancement
 
 **Projet** : Exploitation des marchés publics — Chaîne Big Data & IA
-**Type** : Prototype académique — 15 jours
+**Type** : Prototype académique
 **Équipe** : 2 étudiantes — IA & Big Data
 **Date** : 17/08/2026
 **Source des données** : [marchespublics.gov.ma](https://www.marchespublics.gov.ma) (PMMP)
@@ -85,7 +85,7 @@ statut_attribution, justification_choix, delai_execution, date_achevement_commis
 1. Prioriser le **PV** plutôt que le **Résultat définitif** comme source principale d'attribution (le PV contient un sur-ensemble des données : tous les concurrents, pas seulement le gagnant) — cette priorité vous semble-t-elle pertinente ?
 2. Le scraper ne remplira jamais le formulaire d'identification demandé pour certains téléchargements de dossier (identité + acceptation de conditions requises) — nous marquons simplement ces documents comme non téléchargeables. Cette position est-elle raisonnable pour un projet académique ?
 3. Le référentiel fiscal restera **synthétique**, faute d'accès aux données DGI — le mécanisme de croisement sera démontré, pas validé sur des données réelles. Ce périmètre correspond-il à ce qui est attendu ?
-4. Pour rester réaliste sur 15 jours, l'échantillon de scraping sera filtré par plage de date et catégorie (ex : Travaux, période récente) plutôt que d'aspirer l'historique complet (134 000+ annonces) — ce périmètre vous paraît-il suffisant pour démontrer la chaîne complète ?
+4. L'échantillon de scraping sera filtré par plage de date et catégorie (ex : Travaux, période récente) plutôt que d'aspirer l'historique complet (134 000+ annonces) — ce périmètre vous paraît-il suffisant pour démontrer la chaîne complète ?
 
 ---
 

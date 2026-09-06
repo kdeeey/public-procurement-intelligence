@@ -114,7 +114,7 @@ Mesure sur le corpus réel (spider Consultations, deux passes) :
 | `date_mise_ligne` | **0/16** | 13/13 |
 | `reference`, `objet`, `acheteur_public`, `mode_passation`, `categorie_principale` | 16/16 | 13/13 |
 
-**Rattrapage possible mais hors périmètre.** Récupérer ces deux red flags supposerait une **collecte au fil de l'eau** : scraper les consultations pendant qu'elles sont encore ouvertes (l'estimation et les dates y sont disponibles), les stocker, puis les rejoindre aux PV qui paraîtront plus tard. C'est viable pour un système pérenne, mais incompatible avec un sprint de 15 jours — la fenêtre d'observation nécessaire est de plusieurs mois.
+**Rattrapage possible mais hors périmètre.** Récupérer ces deux red flags supposerait une **collecte au fil de l'eau** : scraper les consultations pendant qu'elles sont encore ouvertes (l'estimation et les dates y sont disponibles), les stocker, puis les rejoindre aux PV qui paraîtront plus tard. C'est viable pour un système pérenne, mais la fenêtre d'observation nécessaire est de plusieurs mois.
 
 **Décision retenue** : retrait du périmètre actif, à documenter comme limite assumée dans `docs/methodology.md` (Issue 15), au même titre que la limite déjà documentée plus haut sur `mode_passation`. Ce que la Passe A apporte de façon fiable sur les 400 marchés attribués — y compris 2023 — reste `acheteur_public`, `categorie_principale`, `mode_passation`, `objet` et `lieu_execution`, c'est-à-dire les variables de contrôle et de regroupement de §2.5.
 
@@ -131,19 +131,19 @@ Mesure sur le corpus réel (spider Consultations, deux passes) :
 
 Fazekas ne choisit pas les poids au hasard : chaque red flag reçoit un poids dérivé de son coefficient de régression (plus un indicateur est prédictif dans leurs modèles, plus il pèse dans l'indice composite CRI). Pour Issue 12 (`risk_score`), deux options à trancher avec l'encadrante :
 
-1. **Poids égaux** (plus simple, plus rapide pour 15 jours) — chaque red flag actif ajoute une valeur fixe au score 0-100.
+1. **Poids égaux** — chaque red flag actif ajoute une valeur fixe au score 0-100.
 2. **Poids inspirés de Fazekas** — reprendre leurs poids relatifs (Table 5 de l'article) pour les red flags qu'on a en commun, en documentant explicitement que ce sont des poids importés d'un contexte hongrois, pas ré-estimés sur données marocaines. Plus défendable scientifiquement en soutenance, mais introduit un biais de transfert à assumer.
 
 Recommandation : commencer par l'option 1 pour le prototype, mentionner l'option 2 comme axe d'amélioration dans `docs/methodology.md` (Issue 15).
 
-### Multi-niveaux d'analyse (extension au-delà de Fazekas, à garder simple pour 15 jours)
+### Multi-niveaux d'analyse (extension au-delà de Fazekas)
 
 Fazekas agrège son CRI du contrat → organisation → secteur → région → pays. On peut viser la même hiérarchie mais **seulement 2 niveaux pour le prototype** :
 
 - **Niveau marché** : ce marché est-il inhabituel ? (Isolation Forest sur features de marché)
 - **Niveau entreprise** : cette entreprise a-t-elle une trajectoire de risque croissante ? (§2.5, série temporelle)
 
-Le niveau acheteur public et le niveau secteur sont mentionnables comme extensions futures dans le rapport, mais ne pas les coder dans le sprint de 15 jours sauf temps en rab — risque de complexifier le scope pour un gain marginal en démo.
+Le niveau acheteur public et le niveau secteur sont mentionnables comme extensions futures dans le rapport, mais ne pas les coder dans ce sprint sauf temps en rab — risque de complexifier le scope pour un gain marginal en démo.
 
 ---
 
@@ -155,4 +155,4 @@ Le niveau acheteur public et le niveau secteur sont mentionnables comme extensio
 
 ## Limite à documenter dans le rapport final
 
-Contrairement à Fazekas (régression sur 53 000+ contrats hongrois pour valider statistiquement chaque red flag), on **importe leur liste sans revalider empiriquement sur données marocaines** — le volume du prototype (15 jours, échantillon filtré) ne le permet pas. C'est une limitation à assumer explicitement, pas à cacher : les red flags sont utilisés comme hypothèses de départ issues de la littérature, pas comme résultats re-démontrés sur le PMMP.
+Contrairement à Fazekas (régression sur 53 000+ contrats hongrois pour valider statistiquement chaque red flag), on **importe leur liste sans revalider empiriquement sur données marocaines** — le volume du prototype (échantillon filtré) ne le permet pas. C'est une limitation à assumer explicitement, pas à cacher : les red flags sont utilisés comme hypothèses de départ issues de la littérature, pas comme résultats re-démontrés sur le PMMP.

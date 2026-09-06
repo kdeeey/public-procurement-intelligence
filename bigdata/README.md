@@ -469,7 +469,7 @@ coder, pas juste non implémenté :
   jamais sur un même marché sur ce portail (la page de détail d'une
   consultation déjà attribuée n'affiche que le contexte "extrait de PV",
   jamais celui de l'annonce d'origine). Rattrapage possible seulement via
-  une collecte au fil de l'eau, hors sprint de 15 jours (même doc).
+  une collecte au fil de l'eau, hors périmètre actuel (même doc).
 
 **Trou d'extraction mesuré sur le montant du vainqueur** (trouvé en
 vérifiant `amount_variation`, pas anticipé) : parmi les 211 liens (Award,
@@ -1147,7 +1147,7 @@ documenté, et ce n'est plus celui qui a produit les artefacts en place.
 L'architecture cible prévoit JWT/RBAC/audit logs (`docs/issues_backlog.md`
 Issue 13), nécessaires pour un déploiement réel où le système serait
 accessible à plusieurs utilisateurs avec des niveaux d'accès différents.
-Ce prototype de 15 jours, purement démonstratif et en lecture seule, non
+Ce prototype, purement démonstratif et en lecture seule, non
 déployé, n'implémente pas cette couche — l'API expose directement les
 résultats déjà calculés (`risk_scores`, `company_stats_*`, etc.), sans
 authentification, pour la démonstration. Décision assumée de scope, pas

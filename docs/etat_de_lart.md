@@ -2,7 +2,7 @@
 
 **Établissement** : [À compléter]
 **Projet** : Exploitation des marchés publics — Chaîne Big Data, IA d'océrisation et valorisation fiscale
-**Type** : Prototype académique — 15 jours
+**Type** : Prototype académique
 **Équipe** : 2 étudiantes — IA & Big Data
 **Date** : 17/08/2026
 
@@ -12,7 +12,7 @@
 
 ## Résumé
 
-Les portails de marchés publics génèrent un volume important de données hétérogènes — pages web structurées, PDF natifs, documents scannés, formulaires bilingues arabe/français — qui restent en grande partie inexploitables telles quelles pour l'analyse fiscale ou la détection de risques. Cet état de l'art étudie les briques technologiques nécessaires pour construire une chaîne complète allant de la collecte automatisée de données publiques jusqu'à la détection d'anomalies explicable : le web scraping éthique de portails gouvernementaux, la reconnaissance optique de caractères (OCR) appliquée à des documents administratifs multilingues, l'extraction d'information par règles et traitement du langage naturel (NLP), le traitement distribué de données (Big Data), la détection d'anomalies par apprentissage non supervisé, et l'explicabilité des systèmes d'aide à la décision (XAI). Nous passons en revue la littérature existante sur chacun de ces axes, comparons les principales technologies open source disponibles, et proposons une architecture adaptée au contexte d'un prototype de 15 jours portant sur le Portail Marocain des Marchés Publics (PMMP). Une attention particulière est portée aux limites réelles constatées lors de l'exploration du portail (absence d'identifiants fiscaux publics, formulaires d'authentification pour certains téléchargements, variabilité des formats documentaires selon les acheteurs), qui contraignent directement les choix méthodologiques.
+Les portails de marchés publics génèrent un volume important de données hétérogènes — pages web structurées, PDF natifs, documents scannés, formulaires bilingues arabe/français — qui restent en grande partie inexploitables telles quelles pour l'analyse fiscale ou la détection de risques. Cet état de l'art étudie les briques technologiques nécessaires pour construire une chaîne complète allant de la collecte automatisée de données publiques jusqu'à la détection d'anomalies explicable : le web scraping éthique de portails gouvernementaux, la reconnaissance optique de caractères (OCR) appliquée à des documents administratifs multilingues, l'extraction d'information par règles et traitement du langage naturel (NLP), le traitement distribué de données (Big Data), la détection d'anomalies par apprentissage non supervisé, et l'explicabilité des systèmes d'aide à la décision (XAI). Nous passons en revue la littérature existante sur chacun de ces axes, comparons les principales technologies open source disponibles, et proposons une architecture adaptée au contexte d'un prototype portant sur le Portail Marocain des Marchés Publics (PMMP). Une attention particulière est portée aux limites réelles constatées lors de l'exploration du portail (absence d'identifiants fiscaux publics, formulaires d'authentification pour certains téléchargements, variabilité des formats documentaires selon les acheteurs), qui contraignent directement les choix méthodologiques.
 
 **Mots-clés** : web scraping éthique ; OCR ; NLP ; extraction d'information ; PySpark ; détection d'anomalies ; Isolation Forest ; explicabilité ; marchés publics ; corruption risk indicators ; PMMP.
 
@@ -109,7 +109,7 @@ Le tableau ci-dessous résume, pour chaque travail directement pertinent identif
 |---|---|---|---|
 | Regex / règles lexicales | Rapide à mettre en œuvre, prévisible, pas de données d'entraînement nécessaires | Fragile aux variations de format (confirmé : "Montant MAX" vs "Montant", texte libre chez certains acheteurs) | ✔ Base de l'extraction, avec tolérance aux variantes |
 | spaCy (NER statistique) [Référence à vérifier — Honnibal & Montani, spaCy] | Généralise mieux aux formulations non prévues, extraction d'entités (organisations, personnes, lieux) | Nécessite des modèles pré-entraînés en français, moins fiable sur du texte issu d'OCR bruité | ✔ Complément aux règles pour les champs libres (objet, acheteur) |
-| LLM / transformers fine-tunés | Très robuste aux formats variés | Coût de calcul, données d'entraînement nécessaires, hors de portée d'un prototype de 15 jours | ✘ Écarté, piste d'évolution future (README §61) |
+| LLM / transformers fine-tunés | Très robuste aux formats variés | Coût de calcul, données d'entraînement nécessaires | ✘ Écarté, piste d'évolution future (README §61) |
 
 ### 4.3 Détection d'anomalies
 
@@ -117,7 +117,7 @@ Le tableau ci-dessous résume, pour chaque travail directement pertinent identif
 |---|---|---|---|---|
 | **Isolation Forest** | Isolement par partitionnement aléatoire | Rapide, pas besoin d'exemples étiquetés, adapté aux features tabulaires mixtes | Moins interprétable nativement (nécessite un calcul d'explication séparé) | ✔ Retenu (README §19) |
 | Local Outlier Factor (LOF) [Référence à vérifier] | Densité locale relative | Bonne détection d'anomalies locales | Sensible au choix du nombre de voisins, coûteux sur gros volumes | Piste de comparaison possible |
-| Autoencodeur | Erreur de reconstruction | Capte des relations non linéaires complexes | Nécessite plus de données et de réglage, moins interprétable | ✘ Hors de portée pour un prototype de 15 jours |
+| Autoencodeur | Erreur de reconstruction | Capte des relations non linéaires complexes | Nécessite plus de données et de réglage, moins interprétable | ✘ Écarté |
 
 ### 4.4 Traitement des données
 
@@ -195,7 +195,7 @@ Conformément aux pratiques standards de la littérature en extraction d'informa
 
 Cet état de l'art confirme que les choix techniques du projet — Tesseract pour l'OCR avec détection préalable de texte natif, combinaison de règles et de NLP pour l'extraction, Isolation Forest pour la détection d'anomalies non supervisée, et un principe d'explicabilité systématique — s'appuient sur des pratiques éprouvées dans la littérature, tout en étant adaptés aux contraintes réelles constatées sur le PMMP (variabilité des formats, absence d'identifiants fiscaux publics, blocages d'accès partiels). La prochaine étape est le développement du prototype selon l'architecture proposée en §5, avec évaluation sur l'échantillon de validation déjà constitué.
 
-Les pistes d'évolution identifiées (README §61) — passage à un modèle NLP plus avancé, recherche sémantique, monitoring en production — restent hors du périmètre du prototype de 15 jours mais s'inscrivent dans la continuité de cette revue de littérature.
+Les pistes d'évolution identifiées (README §61) — passage à un modèle NLP plus avancé, recherche sémantique, monitoring en production — restent hors du périmètre du prototype mais s'inscrivent dans la continuité de cette revue de littérature.
 
 ---
 

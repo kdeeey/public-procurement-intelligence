@@ -79,7 +79,7 @@ Vérifié sur les documents "Résultats définitifs" : seul le nom de l'entrepri
 ### 2.5 Volumétrie réelle
 - 3 587 consultations en cours (recherche non filtrée)
 - 134 839 annonces au total (tous types, historique complet)
-- Confirme la nécessité de filtrer par plage de date pour le prototype de 15 jours, comme prévu au README §6.
+- Confirme la nécessité de filtrer par plage de date pour le prototype, comme prévu au README §6.
 
 ### 2.6 Risque identifié — variabilité des formats
 Les PDF de résultats sont générés par chaque acheteur individuellement → mise en page probablement différente d'un acheteur à l'autre. L'extraction (regex/NLP) doit être conçue pour être flexible, pas câblée sur un seul format. Confirme le risque déjà noté au README §53.
@@ -256,7 +256,7 @@ ni un défaut d'extraction.
 - [x] **Rédiger `docs/data_dictionary.md`** : voir [`data_dictionary.md`](data_dictionary.md).
 - [ ] **Vérification rapide (optionnelle, faible priorité)** : ouvrir les onglets "Dépôt" et "Groupement" d'une page de détail de consultation pour écarter définitivement la présence d'ICE/RC.
 - [ ] **Phase 4 — Environnement** : mise en place `venv`/`requirements.txt`, squelette Docker Compose, `.env.example`.
-- [ ] **Phase 5 — Découpage en tâches GitHub** : transformer le planning 15 jours (README §50) en Issues/Projects GitHub, un par jour/module, avec critères de "done" définis à l'avance.
+- [ ] **Phase 5 — Découpage en tâches GitHub** : transformer le planning (README §50) en Issues/Projects GitHub, un par jour/module, avec critères de "done" définis à l'avance.
 - [ ] **Écrire le problème/scope en un paragraphe** dans `docs/methodology.md`, réutilisable pour le rapport final.
 - [ ] Une fois tout ça fait : démarrer le prototype minimal (README §49 Étape 1) — 1 consultation, 1 document, OCR, extraction, base de données.
 

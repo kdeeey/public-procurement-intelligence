@@ -27,7 +27,7 @@ API en lecture seule exposant les résultats du pipeline PMMP
 
 **{RISK_DISCLAIMER}**
 
-Prototype démonstratif de 15 jours, non déployé, sans authentification —
+Prototype démonstratif, non déployé, sans authentification —
 voir `bigdata/README.md` ("Sécurité — hors périmètre de ce prototype")
 pour la décision de scope.
 """
