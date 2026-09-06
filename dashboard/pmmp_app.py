@@ -57,7 +57,7 @@ PAGES = {
 }
 
 st.set_page_config(page_title="PMMP — Analyse des marchés publics",
-                   page_icon="📊", layout="wide",
+                   layout="wide",
                    initial_sidebar_state="expanded")
 
 
