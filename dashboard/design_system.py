@@ -446,6 +446,19 @@ header[data-testid="stHeader"] {{ background:transparent; height:0; }}
 [data-testid="stToolbar"] {{ right:8px; }}
 [data-testid="stAppViewBlockContainer"],
 .block-container {{ padding:28px 34px 64px; max-width:1400px; }}
+
+/* ---- mobile : aucune regle du fichier n'avait de @media avant ce
+   correctif — verifie a l'ecran, la sidebar a largeur fixe (252px
+   !important, plus bas) entrait en conflit avec le tiroir superpose que
+   Streamlit affiche nativement sous ~768px, et le padding desktop (34px)
+   mangeait une part trop grande d'un ecran de telephone (~360-390px). --- */
+@media (max-width: 767px) {{
+  [data-testid="stAppViewBlockContainer"],
+  .block-container {{ padding:16px 14px 40px !important; }}
+  h3 {{ font-size:20px; }}
+  .pmmp-kpi-value {{ font-size:22px; }}
+  [data-testid="stSidebar"] {{ width:min(84vw, 300px) !important; }}
+}}
 [data-testid="stVerticalBlock"] {{ gap:var(--space-4); }}
 h1,h2,h3,h4,h5,h6 {{ font-family:var(--font-heading); font-weight:500;
   line-height:1.12; letter-spacing:-0.015em; color:var(--color-text); }}
