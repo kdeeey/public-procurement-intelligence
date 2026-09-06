@@ -452,6 +452,17 @@ header[data-testid="stHeader"] {{ background:transparent; height:0; }}
    !important, plus bas) entrait en conflit avec le tiroir superpose que
    Streamlit affiche nativement sous ~768px, et le padding desktop (34px)
    mangeait une part trop grande d'un ecran de telephone (~360-390px). --- */
+/* Filtres et rangees de colonnes (st.columns) : verifie a l'ecran sur une
+   fenetre etroite (ni pleinement desktop, ni sous le seuil mobile de la
+   sidebar ci-dessous) — 5 filtres cote a cote (Marches publics) poussent
+   le tableau hors champ avant que Streamlit ne les empile de lui-meme.
+   Filet de securite plus large que le seuil mobile strict. */
+@media (max-width: 900px) {{
+  [data-testid="stHorizontalBlock"] {{ flex-wrap:wrap !important; }}
+  [data-testid="stHorizontalBlock"] > div[data-testid="stColumn"] {{
+    min-width:100% !important; flex:1 1 100% !important; }}
+}}
+
 @media (max-width: 767px) {{
   [data-testid="stAppViewBlockContainer"],
   /* padding bas augmente : le badge "Hosted with Streamlit" est injecte par
