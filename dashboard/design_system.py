@@ -454,10 +454,24 @@ header[data-testid="stHeader"] {{ background:transparent; height:0; }}
    mangeait une part trop grande d'un ecran de telephone (~360-390px). --- */
 @media (max-width: 767px) {{
   [data-testid="stAppViewBlockContainer"],
-  .block-container {{ padding:16px 14px 40px !important; }}
+  /* padding bas augmente : le badge "Hosted with Streamlit" est injecte par
+     l'hebergement Streamlit Community Cloud (absent en local, verifie —
+     introuvable dans le paquet streamlit lui-meme), position fixe en bas a
+     droite ; sur un ecran etroit il recouvre sinon la fin des cartes. */
+  .block-container {{ padding:16px 14px 96px !important; }}
   h3 {{ font-size:20px; }}
   .pmmp-kpi-value {{ font-size:22px; }}
   [data-testid="stSidebar"] {{ width:min(84vw, 300px) !important; }}
+  /* Onglets : la barre en pilule garde le padding desktop (var(--space-6)
+     de chaque cote) et deborde sur un ecran de telephone — verifie a
+     l'ecran, "Vue analytique" sortait du cadre. Reduit le padding et
+     autorise un defilement horizontal CONTENU dans la pilule plutot que de
+     laisser la page entiere deborder. */
+  [data-testid="stTabs"] div:has(> [data-testid="stTab"]) {{
+    overflow-x:auto; max-width:100%; -webkit-overflow-scrolling:touch; }}
+  [data-testid="stTab"] {{
+    padding:var(--space-2) var(--space-3) !important; font-size:11.5px;
+    white-space:nowrap; flex:0 0 auto; }}
 }}
 [data-testid="stVerticalBlock"] {{ gap:var(--space-4); }}
 h1,h2,h3,h4,h5,h6 {{ font-family:var(--font-heading); font-weight:500;
