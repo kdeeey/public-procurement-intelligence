@@ -516,19 +516,27 @@ a:hover {{ color:var(--color-accent-800); text-decoration:underline; }}
 [data-testid="stSidebar"] .stButton button:hover {{
   background:var(--color-neutral-200); color:var(--color-text); }}
 
-/* ---- onglets (barre a 3 onglets de la Vue generale) ------------------- */
-[data-testid="stTabs"] [data-baseweb="tab-list"] {{
+/* ---- onglets (barre a 3 onglets de la Vue generale) -------------------
+   Streamlit a retire BaseWeb de son composant Tabs (releve sur la version
+   1.63 installee ici, via le bundle JS statique du paquet : les boutons
+   portent desormais `data-testid="stTab"` et `role="tab"`, plus aucun
+   attribut `data-baseweb`). Les anciens selecteurs ne correspondaient plus
+   a rien et la barre retombait au style natif du navigateur (soulignement
+   rouge, aucun fond pilule) — visible a l'ecran, pas suppose. Le conteneur
+   de la liste n'a pas de test-id propre : cible via `:has()` le premier
+   parent direct qui contient un `stTab`, plutot qu'une classe generee
+   (`e1ac7blb3`) qui n'est pas un identifiant stable. */
+[data-testid="stTabs"] div:has(> [data-testid="stTab"]) {{
   gap:2px; padding:3px; background:var(--color-neutral-200);
-  border-radius:999px; display:inline-flex; }}
-[data-testid="stTabs"] [data-baseweb="tab-list"] [data-baseweb="tab"] {{
-  padding:var(--space-2) var(--space-6); border-radius:999px; height:auto;
+  border-radius:999px; display:inline-flex; width:fit-content; }}
+[data-testid="stTab"] {{
+  padding:var(--space-2) var(--space-6) !important; border-radius:999px;
+  height:auto; border:none !important; box-shadow:none !important;
   font-family:var(--font-heading); font-size:12.5px; font-weight:500;
   color:var(--color-neutral-600); background:transparent; }}
-[data-testid="stTabs"] [aria-selected="true"] {{
+[data-testid="stTab"][aria-selected="true"] {{
   background:var(--color-surface) !important; color:var(--color-text) !important;
-  box-shadow:var(--shadow-sm); }}
-[data-testid="stTabs"] [data-baseweb="tab-highlight"],
-[data-testid="stTabs"] [data-baseweb="tab-border"] {{ display:none; }}
+  box-shadow:var(--shadow-sm) !important; }}
 
 /* ---- boutons, champs -------------------------------------------------- */
 .stButton button {{ font-family:var(--font-heading); font-weight:500;
