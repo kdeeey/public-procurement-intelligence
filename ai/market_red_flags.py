@@ -1,23 +1,43 @@
 """
-Red flags metier au grain marche — registre de regles (Phase 2, 28/08/2026).
+Red flags metier au grain marche — registre de regles (Phase 2, 28/08/2026 ;
+repositionne en amont du modele lors de la refonte "red flags only").
 
-SEPARATION VOULUE, ET POURQUOI
--------------------------------
-Deux choses differentes, deliberement gardees distinctes :
+CE MODULE TOURNE DESORMAIS AVANT ai/train_market_model.py
+------------------------------------------------------------
+Depuis la refonte, Isolation Forest s'entraine SUR RF01/RF02/RF03 (voir
+ai/train_market_model.py) : les red flags doivent donc exister avant le
+modele, pas apres. Ce module lit `market_features.parquet` directement
+(via ai/market_population.py pour le filtre ATTRIBUE + la porte de
+completude), plus `market_peer_comparison.parquet` pour RF03. Il ne lit
+plus `market_anomaly_scores.parquet` — l'ancienne dependance inverse
+n'a plus de sens des lors que c'est le modele qui depend des flags, pas
+l'inverse.
 
-  A. Les FEATURES du modele (ai/train_market_model.py) — numeriques,
-     imputees, encodees, lisibles par Isolation Forest, illisibles par un
-     analyste.
-  B. Les RED FLAGS de ce module — des regles nommees, chacune vraie, fausse
-     ou non evaluable sur un marche donne, comprehensibles sans connaitre
-     le modele.
+Sa sortie (`market_red_flags.parquet`) transporte desormais toutes les
+colonnes de `market_features.parquet` (contexte marche complet), en plus
+des colonnes de flags : c'est elle, et non plus `market_anomaly_scores.parquet`,
+qui sert de table ATTRIBUE de reference aux etages avals.
+
+DEUX FAMILLES DE COLONNES DE FLAGS, A NE PAS CONFONDRE
+---------------------------------------------------------
+  * RF01..RF06 — le registre complet, cinq regles + une derivee, toutes
+    affichees dans le dashboard (Explicabilite, tableau des marches).
+  * `priority_flag_count` / `priority_flags_evaluable` — le sous-ensemble
+    RF01+RF02+RF03 uniquement (les 3 "red flags prioritaires"), qui seul
+    pilote la priorite (ai/priority_score.py) et l'entrainement du modele
+    (ai/train_market_model.py). RF05 (procedure rare) et RF06 (derive)
+    restent visibles partout ailleurs mais ne comptent pas dans ce compte :
+    RF05 est renseigne a 100 % (il ne s'accorderait pas avec un compte "sur
+    3" fait pour distinguer l'evaluable du non-evaluable), et RF06 n'est
+    par construction qu'une combinaison des trois autres.
 
 Un red flag n'est PAS une composante du score d'anomalie et n'est jamais
 fusionne arithmetiquement avec lui. Mesure a l'appui : la correlation entre
 `anomaly_score` et le nombre de red flags actifs vaut **+0,096** — les deux
-signaux sont quasi independants. C'est ce qui justifie de les presenter
-cote a cote (et, en Phase 6, de les combiner), pas de les additionner
-aveuglement.
+signaux sont quasi independants. C'est pourquoi le modele n'ajoute plus
+son score a celui des red flags (ai/priority_score.py) : il ne sert plus
+qu'a departager des marches a egalite de flags actifs, jamais a changer
+leur niveau de priorite.
 
 TOUTE CONDITION EST ADOSSEE AUX ETATS DE features/data_quality.py
 ------------------------------------------------------------------
@@ -79,11 +99,16 @@ sys.path.insert(0, str(REPO))
 
 import pandas as pd  # noqa: E402
 
+from ai.market_population import compute_population  # noqa: E402
 from features.data_quality import State, assess_market  # noqa: E402
 
-SCORES_PATH = REPO / "data/processed/analytics/market_anomaly_scores.parquet"
+FEATURES_PATH = REPO / "data/processed/analytics/market_features.parquet"
 RED_FLAGS_PATH = REPO / "data/processed/analytics/market_red_flags.parquet"
 THRESHOLDS_PATH = REPO / "data/processed/analytics/red_flag_thresholds.json"
+
+# Les 3 "red flags prioritaires" — seuls a compter dans priority_flag_count
+# et a alimenter ai/train_market_model.py. Voir la docstring du module.
+PRIORITY_FLAG_IDS = ("RF01", "RF02", "RF03")
 
 # --------------------------------------------------------------------------- #
 # Seuils — MESURES a l'execution sur la distribution reelle, jamais figes ici.
@@ -404,6 +429,21 @@ def summarize(flags: dict[str, bool | None]) -> dict:
     }
 
 
+def summarize_priority(flags: dict[str, bool | None]) -> dict:
+    """Compte sur les 3 red flags PRIORITAIRES uniquement
+    (RF01+RF02+RF03) — distinct de `summarize()`, qui pondere par severite
+    sur les 4 flags primaires (RF01+RF02+RF03+RF05). C'est CE compte,
+    jamais `red_flag_count`, qui pilote ai/priority_score.py et
+    l'entrainement d'ai/train_market_model.py — voir la docstring du
+    module pour la raison (RF05 est renseigne a 100 %, donc etranger a la
+    logique "sur 3" qui distingue l'evaluable du non-evaluable)."""
+    valeurs = [flags[f] for f in PRIORITY_FLAG_IDS]
+    return {
+        "priority_flag_count": sum(1 for v in valeurs if v is True),
+        "priority_flags_evaluable": sum(1 for v in valeurs if v is not None),
+    }
+
+
 def describe(flags: dict[str, bool | None]) -> str:
     """Phrase destinee a un analyste.
 
@@ -429,7 +469,8 @@ PEER_PATH = REPO / "data/processed/analytics/market_peer_comparison.parquet"
 
 
 def main() -> int:
-    pdf = pd.read_parquet(SCORES_PATH)
+    features = pd.read_parquet(FEATURES_PATH)
+    pdf = compute_population(features)
     # Comparables (Phase 3) : optionnels. Sans eux, RF03 retombe sur le
     # quantile du corpus — le module reste executable seul.
     if PEER_PATH.exists():
@@ -475,13 +516,17 @@ def main() -> int:
         record["rf03_reference"] = (
             "pairs" if p90 is not None and not (isinstance(p90, float) and pd.isna(p90))
             else ("corpus" if flags["RF03"] is not None else "non evaluable"))
+        record.update(summarize_priority(flags))
         record["explication"] = describe(flags)
         rows.append(record)
     flags_pdf = pd.DataFrame(rows)
 
-    result = pdf[["award_id", "reference", "acheteur_public", "statut", "scorable",
-                  "anomaly_score_0_100", "is_anomaly", "stability_frequency",
-                  "data_completeness"]].merge(flags_pdf, on="award_id", how="left")
+    # Transporte TOUTES les colonnes de market_features.parquet (contexte
+    # marche complet), pas une selection etroite : cette table devient la
+    # reference ATTRIBUE des etages avals (train_market_model, priority_score,
+    # dashboard), a la place de l'ancien market_anomaly_scores.parquet qui
+    # jouait ce role avant la refonte.
+    result = pdf.merge(flags_pdf, on="award_id", how="left")
 
     print(f"\n=== frequence des red flags ({len(result)} marches attribues) ===")
     print(f"{'flag':<8}{'nom':<26}{'actif':>7}{'inactif':>9}{'non evaluable':>15}")
@@ -497,20 +542,17 @@ def main() -> int:
           f"{int((result['RF01'] == True).sum())} actifs, "  # noqa: E712
           f"{int(result['RF01'].isna().sum())} non evaluables.")
 
-    print("\n=== repartition du nombre de flags primaires actifs ===")
+    print("\n=== repartition du nombre de flags primaires actifs (RF01+RF02+RF03+RF05) ===")
     for n, g in result.groupby("red_flag_count"):
-        scorable = g[g["scorable"] == True]  # noqa: E712
-        moyenne = scorable["anomaly_score_0_100"].mean()
-        print(f"  {int(n)} flag(s) : {len(g):3d} marches, score d'anomalie moyen "
-              f"{moyenne:5.1f}, {int(scorable['is_anomaly'].sum()):2d} signales par le modele")
+        print(f"  {int(n)} flag(s) : {len(g):3d} marches")
 
-    corr = (result.loc[result["scorable"] == True, "anomaly_score_0_100"]  # noqa: E712
-            .corr(result.loc[result["scorable"] == True, "red_flag_count"]))
-    print(f"\n  correlation(score d'anomalie, nombre de red flags) = {corr:+.3f}")
-    print("  Les deux approches se recoupent sans se confondre. Un marche tres")
-    print("  atypique SANS red flag nomme est une combinaison inhabituelle")
-    print("  qu'aucune regle ne couvre — c'est ce qu'un modele non supervise")
-    print("  apporte en plus d'une liste de regles.")
+    print("\n=== repartition du compte PRIORITAIRE (RF01+RF02+RF03 seulement) ===")
+    print("  C'est ce compte, pas red_flag_count, qui pilote priority_level")
+    print("  (ai/priority_score.py) et l'entrainement du modele (ai/train_market_model.py).")
+    for n, g in result.groupby("priority_flag_count"):
+        evaluables = g["priority_flags_evaluable"]
+        print(f"  {int(n)}/3 actif(s) : {len(g):3d} marches "
+              f"(dont {(evaluables < 2).sum()} avec moins de 2/3 evaluables)")
 
     RED_FLAGS_PATH.parent.mkdir(parents=True, exist_ok=True)
     result.to_parquet(RED_FLAGS_PATH, index=False)

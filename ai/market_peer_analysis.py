@@ -66,7 +66,7 @@ import pandas as pd  # noqa: E402
 
 from features.data_quality import State, assess_market  # noqa: E402
 
-SCORES_PATH = REPO / "data/processed/analytics/market_anomaly_scores.parquet"
+FEATURES_PATH = REPO / "data/processed/analytics/market_features.parquet"
 PEER_PATH = REPO / "data/processed/analytics/market_peer_comparison.parquet"
 PEER_REPORT_PATH = REPO / "data/processed/analytics/peer_group_report.json"
 
@@ -191,7 +191,8 @@ def build_peer_comparison(pdf: pd.DataFrame) -> pd.DataFrame:
 
 
 def main() -> int:
-    pdf = pd.read_parquet(SCORES_PATH)
+    pdf = pd.read_parquet(FEATURES_PATH)
+    pdf = pdf[pdf["statut"] == "ATTRIBUE"].reset_index(drop=True)
     peers = build_peer_comparison(pdf)
 
     print(f"=== groupes de comparaison ({len(peers)} marches attribues) ===")

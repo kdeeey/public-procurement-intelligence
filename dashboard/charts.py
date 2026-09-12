@@ -165,109 +165,39 @@ def donut_priorities(df: pd.DataFrame) -> tuple[go.Figure, int] | None:
     return _layout(fig, 240), total
 
 
-def scatter_anomaly_flags(markets: pd.DataFrame) -> go.Figure | None:
-    """Score d'anomalie contre score de red flags.
-
-    Deux signaux quasi indépendants (c'est ce que mesure leur faible
-    corrélation) : un marché peut être atypique sans red flag nommé, ou
-    cumuler des red flags sans être isolé par le modèle. La taille du point
-    traduit la confiance ; les points évidés signalent une confiance faible
-    ou insuffisante.
+def bars_flag_count(df: pd.DataFrame) -> go.Figure | None:
+    """Répartition des marchés scorables par nombre de red flags
+    prioritaires actifs (0 à 3, RF01+RF02+RF03) — remplace le nuage
+    anomalie/red flags depuis la refonte "red flags only" : c'est
+    directement ce compte qui décide `priority_level`
+    (ai/priority_score.py), donc c'est lui que ce graphique montre, pas une
+    corrélation entre deux scores qui n'entrent plus tous les deux dans la
+    décision.
     """
-    if markets.empty:
+    if df.empty:
         return None
-    d = markets[markets["anomaly_score_0_100"].notna()
-                & markets["red_flag_score"].notna()].copy()
-    if d.empty:
-        return None
-
-    size_by_conf = {"Elevee": 11, "Moyenne": 9}
-    open_conf = {"Faible", "Insuffisante"}
-
-    fig = go.Figure()
-    for level in ds.PRIORITY_ORDER:
-        sub = d[d["priority_level"] == level]
-        if sub.empty:
-            continue
-        color = ds.RISK[ds.PRIORITY_ROLE[level]]["base"]
-        is_open = sub["confidence_level"].isin(open_conf)
-        fig.add_trace(go.Scatter(
-            x=sub["anomaly_score_0_100"], y=sub["red_flag_score"],
-            mode="markers", name=ds.priority_display(level),
-            marker=dict(
-                size=[size_by_conf.get(c, 7) for c in sub["confidence_level"]],
-                color=[ds.TOKENS["surface"] if o else color for o in is_open],
-                opacity=0.85,
-                line=dict(color=color, width=1.4),
-            ),
-            customdata=sub[["reference", "acheteur_public", "confidence_level"]].fillna(
-                "Sans référence").values,
-            hovertemplate=("<b>%{customdata[0]}</b><br>%{customdata[1]}"
-                           "<br>Anomalie %{x:.1f} · Red flags %{y:.0f}"
-                           "<br>Confiance : %{customdata[2]}<extra></extra>"),
-        ))
-    fig.update_xaxes(title_text="Score d'anomalie (0–100)", range=[-3, 103],
-                     gridcolor=ds.TOKENS["n200"], zeroline=False,
-                     title_font=dict(size=11, color=ds.TOKENS["n600"]),
-                     tickfont=dict(size=10.5, color=ds.TOKENS["n500"]))
-    fig.update_yaxes(title_text="Score red flags", range=[-3, 103],
-                     gridcolor=ds.TOKENS["n200"], zeroline=False,
-                     title_font=dict(size=11, color=ds.TOKENS["n600"]),
-                     tickfont=dict(size=10.5, color=ds.TOKENS["n500"]))
-    fig = _layout(fig, 300, dict(l=8, r=8, t=8, b=8))
-    fig.update_layout(showlegend=True, legend=dict(
-        orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0,
-        font=dict(size=10.5, color=ds.TOKENS["n600"]), bgcolor="rgba(0,0,0,0)"))
-    return fig
+    d = df.copy()
+    d["compte"] = d["compte"].astype(int)
+    labels = {0: "0/3 — Faible", 1: "1/3 — À surveiller",
+              2: "2/3 — Prioritaire", 3: "3/3 — Très prioritaire"}
+    roles = {0: "low", 1: "mid", 2: "high", 3: "crit"}
+    d = d.set_index("compte").reindex([0, 1, 2, 3], fill_value=0).reset_index()
+    colors = [ds.RISK[roles[c]]["base"] for c in d["compte"]]
+    fig = go.Figure(go.Bar(
+        x=[labels[c] for c in d["compte"]], y=d["n"],
+        marker=dict(color=colors),
+        text=[str(int(v)) for v in d["n"]], textposition="outside",
+        textfont=dict(size=11.5, color=ds.TOKENS["n700"]),
+        hovertemplate="%{x} · %{y} marchés<extra></extra>",
+    ))
+    fig.update_xaxes(tickfont=dict(size=10.5, color=ds.TOKENS["n700"]), showgrid=False)
+    fig.update_yaxes(visible=False, range=[0, max(d["n"].max() * 1.25, 1)])
+    return _layout(fig, 260, dict(l=8, r=8, t=18, b=8))
 
 
 # --------------------------------------------------------------------------- #
 # XAI
 # --------------------------------------------------------------------------- #
-
-def gauge_anomaly(value: float, bands: dict | None) -> go.Figure:
-    """Jauge circulaire du score d'anomalie.
-
-    Les bandes ne sont PAS des quarts arbitraires : elles reprennent les
-    bornes mesurées sur la distribution réelle (`data_access
-    .measured_risk_bands()`), c'est-à-dire la frontière que le modèle
-    choisit lui-même pour « Faible » puis les terciles du sous-groupe
-    signalé. Sans bandes mesurables, la jauge s'affiche nue.
-    """
-    steps = []
-    if bands:
-        edges = [(0, bands["faible_max"], "low"),
-                 (bands["faible_max"], bands["modere_max"], "mid"),
-                 (bands["modere_max"], bands["eleve_max"], "high"),
-                 (bands["eleve_max"], 100, "crit")]
-        # Teinte `line` et non `bg` : le fond des bandes doit rester lisible
-        # sur une surface blanche sans crier — verifie a l'ecran, les tons
-        # `bg` y etaient quasi invisibles.
-        steps = [dict(range=[a, b], color=ds.RISK[role]["line"]) for a, b, role in edges]
-
-    fig = go.Figure(go.Indicator(
-        mode="gauge+number",
-        value=float(value),
-        # Domaine explicite, avec de la marge en haut : sans elle, le label
-        # "50" (au sommet de l'arc, la ou la courbure est la plus forte)
-        # touche le bord du canevas et parait tronque — les quatre autres
-        # labels ont de la place car ils sont plus bas sur l'arc. Reserver
-        # 14 % de hauteur au-dessus de l'arc suffit a le degager partout.
-        domain=dict(x=[0.04, 0.96], y=[0, 0.86]),
-        number=dict(font=dict(size=34, color=ds.TOKENS["text"],
-                              family="Inter, system-ui, sans-serif"),
-                    valueformat=".1f",
-                    suffix="<span style='font-size:14px;color:#64748B'> / 100</span>"),
-        gauge=dict(
-            axis=dict(range=[0, 100], tickwidth=1, tickcolor=ds.TOKENS["n400"],
-                      tickfont=dict(size=10.5, color=ds.TOKENS["n500"]),
-                      tickvals=[0, 25, 50, 75, 100], ticklen=6),
-            bar=dict(color=ds.TOKENS["text"], thickness=0.16),
-            bgcolor=ds.TOKENS["n100"], borderwidth=0,
-            steps=steps,
-        ),
-    ))
-    return _layout(fig, 250, dict(l=20, r=20, t=38, b=4))
 
 
 def bars_shap(labels: list[str], values: list[float],

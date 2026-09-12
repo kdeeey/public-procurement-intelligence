@@ -111,21 +111,21 @@ def render() -> None:
                 "l'échelle de gravité : c'est un état distinct, et non un niveau "
                 "faible.")
 
-    with right, ds.card("Score d'anomalie et score de red flags"):
-        fig = charts.scatter_anomaly_flags(markets)
+    with right, ds.card("Marchés par nombre de red flags actifs"):
+        fig = charts.bars_flag_count(da.flag_count_distribution())
         if fig is None:
             ds.render_empty_state(
-                "Nuage indisponible",
-                "Les scores de red flags manquent — relancer "
+                "Répartition indisponible",
+                "Les red flags manquent — relancer "
                 "`python -m ai.market_red_flags`.")
         else:
             st.plotly_chart(fig, use_container_width=True,
-                            config=charts.PLOTLY_CONFIG, key="chart_scatter")
+                            config=charts.PLOTLY_CONFIG, key="chart_flag_count")
             ds.render_caption(
-                "Un marché peut être atypique sans red flag explicite, ou "
-                "présenter des red flags sans être fortement isolé par le modèle. "
-                "La taille du point traduit le niveau de confiance ; les points "
-                "évidés signalent une confiance faible ou insuffisante.")
+                "C'est directement ce compte (RF01+RF02+RF03) qui décide le "
+                "niveau de priorité d'un marché. Le score du modèle "
+                "(ai/train_market_model.py) ne fait que départager les marchés "
+                "à égalité de compte, il n'apparaît pas ici.")
 
     # --- tableau des marches a examiner ---------------------------------- #
     st.markdown('<div style="height:var(--space-6)"></div>', unsafe_allow_html=True)

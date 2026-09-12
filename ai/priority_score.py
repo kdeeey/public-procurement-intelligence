@@ -1,54 +1,51 @@
 """
-Priority Score — quels marches examiner en premier (Phases 6 et 7, 28/08/2026).
+Priority Score — quels marches examiner en premier (refonte "red flags
+only" ; remplace la formule ponderee 50/50 anomalie+red flags du 28/08/2026).
 
 CE QUE CE SCORE EST, ET CE QU'IL N'EST PAS
 --------------------------------------------
 Il repond a "quels marches un analyste devrait-il examiner en priorite ?",
 jamais a "quels marches sont irreguliers ?". C'est un ordre de lecture,
-pas un verdict. Deux marches de meme priorite ne partagent rien d'autre que
-le fait de meriter un coup d'oeil.
+pas un verdict.
 
-LA FORMULE, ET POURQUOI ELLE N'ADDITIONNE PAS TOUT
-----------------------------------------------------
-    priority_raw = 0,5 x anomaly_score_0_100  +  0,5 x red_flag_score
+LE NIVEAU EST DECIDE PAR LE COMPTE DE RED FLAGS, JAMAIS PAR LE MODELE
+-------------------------------------------------------------------------
+`priority_level` est une fonction PURE de `priority_flag_count`
+(ai/market_red_flags.py — nombre de flags actifs parmi RF01/RF02/RF03,
+les 3 "red flags prioritaires") :
 
-Deux composantes seulement. Trois raisons, toutes verifiees :
+    0/3 actif  -> Faible
+    1/3 actif  -> A surveiller   (~33 %)
+    2/3 actifs -> Prioritaire    (~66 %)
+    3/3 actifs -> Tres prioritaire (~99-100 %)
 
-1. **La comparaison aux pairs n'est PAS un troisieme terme.** Elle alimente
-   deja RF03 (ai/market_red_flags.py depuis la Phase 3) : l'ajouter
-   separement compterait deux fois le meme signal. C'est exactement le
-   piege que le projet a deja rencontre au niveau entreprise, ou
-   `market_share`, `total_amount` et `average_amount` etaient un seul
-   signal compte trois fois (r = 1,000 et 0,996 mesures).
+Isolation Forest (ai/train_market_model.py, entraine SUR ces 3 flags) ne
+decide plus rien ici — voir la docstring de ce module pour la mecanique.
+Son `anomaly_score_0_100` sert uniquement a construire `priority_raw`, une
+cle de tri qui DEPARTAGE les marches a egalite de compte sans jamais
+pouvoir changer leur niveau :
 
-2. **Poids egaux, parce que rien ne justifie de les differencier.**
-   Mesure : la correlation entre `anomaly_score` et le nombre de red flags
-   actifs vaut +0,195 — les deux signaux sont largement independants, donc
-   tous deux informatifs, et aucun n'est demontrablement superieur. Sans
-   verite terrain, un poids asymetrique serait une preference deguisee en
-   connaissance. Trois formulations sont neanmoins comparees a l'execution
-   (voir `compare_formulations`) pour montrer ce que le choix change.
+    priority_raw = 1000 * priority_flag_count + anomaly_score_0_100
 
-3. **La qualite des donnees n'entre PAS dans le score.** Elle agit comme
-   CONFIANCE, separement — voir ci-dessous.
+Le compte est multiplie par 1000 et le score du modele reste dans [0, 100] :
+un marche a 2/3 vaut donc toujours entre 2000 et 2100, strictement en
+dessous du plus bas score a 3/3 (3000) et au-dessus du plus haut a 1/3
+(1100). Trier par `priority_raw` revient donc a trier par compte d'abord,
+par rarete de la combinaison de flags ensuite — un seul champ, aucune
+regle particuliere a ecrire dans chaque appelant (tableau, API, page XAI).
 
 LA QUALITE DES DONNEES EST UN GARDE-FOU, PAS UN BONUS
 -------------------------------------------------------
-Exigence explicite du cahier des charges, et elle change tout : un marche
-tres atypique dont on ne sait presque rien ne doit PAS remonter en tete.
-Son score eleve viendrait alors surtout de ce qu'on ignore.
-
-Deux mecanismes distincts, jamais melanges au score :
+Inchange : un marche tres prioritaire dont on ne sait presque rien ne doit
+PAS remonter en tete. Deux mecanismes distincts, jamais melanges au score :
 
   * `confidence_level` combine la qualite des donnees (part d'informations
     reellement lues) et la stabilite du score (nombre de reentrainements
-    sur 10 ou le marche ressort dans le Top 20).
+    sur 10 ou le marche ressort dans le Top 20 — desormais un diagnostic du
+    modele, pas un signal en soi, voir ai/train_market_model.py).
   * un PLAFOND : une confiance faible interdit les deux niveaux les plus
     hauts. Le marche reste visible, avec son score, mais il est presente
     comme "a verifier — donnees faibles" et non comme prioritaire.
-
-Ajouter la qualite au score aurait eu l'effet inverse de celui recherche :
-un marche bien documente aurait ete recompense d'etre bien documente.
 
     python -m ai.priority_score
 """
@@ -71,8 +68,13 @@ DATA_QUALITY_PATH = ANALYTICS / "market_data_quality.parquet"
 PRIORITY_PATH = ANALYTICS / "market_priority.parquet"
 PRIORITY_REPORT_PATH = ANALYTICS / "priority_report.json"
 
-W_ANOMALY = 0.5
-W_RED_FLAGS = 0.5
+# Cle de tri composite : le compte de flags prioritaires domine toujours
+# (multiplie par cette constante), le score du modele (0-100) ne fait que
+# departager a l'interieur d'un meme compte. Doit rester strictement > 100
+# (la plage de anomaly_score_0_100) pour que la separation soit garantie.
+COUNT_MULTIPLIER = 1000.0
+
+LEVEL_BY_COUNT = {0: "Faible", 1: "A surveiller", 2: "Prioritaire", 3: "Tres prioritaire"}
 
 # Seuils de CONFIANCE. La qualite des donnees est deja une mesure sur 100 ;
 # 75 est la frontiere "Bon" de features/data_quality.py, reutilisee ici
@@ -103,16 +105,8 @@ def compute_confidence(row) -> str:
     # marche apparait. Elle ne discrimine donc QUE parmi les marches que le
     # modele remonte : un marche jamais entre dans un Top 20 vaut 0, ce qui
     # ne veut pas dire "instable" mais "hors de la zone que cette mesure
-    # observe".
-    #
-    # Bug corrige le 28/08/2026 : la version precedente ne neutralisait que
-    # la valeur MANQUANTE, pas le 0. Resultat mesure, 264/314 marches
-    # (84 %) tombaient en confiance "Faible" et le plafond s'appliquait
-    # presque partout — le garde-fou, cense proteger quelques cas, devenait
-    # la regle generale et ecrasait toute la hierarchie de priorite.
-    #
-    # La stabilite n'est donc prise en compte que lorsqu'elle a un sens :
-    # quand le marche est effectivement apparu au moins une fois.
+    # observe". La stabilite n'est donc prise en compte que lorsqu'elle a un
+    # sens : quand le marche est effectivement apparu au moins une fois.
     stabilite_applicable = pd.notna(stab) and float(stab) > 0
     for label, seuil_dq, seuil_stab in CONFIDENCE_RULES:
         if dq < seuil_dq:
@@ -123,87 +117,34 @@ def compute_confidence(row) -> str:
     return "Faible"
 
 
-def compute_priority_raw(row, w_anomaly=W_ANOMALY, w_flags=W_RED_FLAGS):
-    """Combinaison lineaire des deux composantes.
+def compute_priority_raw(row):
+    """Cle de tri composite — voir la docstring du module.
 
-    `red_flag_score` peut etre None (aucune regle evaluable sur ce marche).
-    Dans ce cas la combinaison est REPONDEREE sur la seule composante
-    disponible plutot que de traiter l'absence comme un zero — sinon un
-    marche dont aucune regle n'est applicable verrait sa priorite divisee
-    par deux par notre propre manque de donnees.
+    None quand le marche n'est pas scorable (moins de 2 des 3 flags
+    prioritaires evaluables) : pas de score, pas de niveau invente.
     """
     anomaly = row.get("anomaly_score_0_100")
-    flags = row.get("red_flag_score")
-    if pd.isna(anomaly):
+    count = row.get("priority_flag_count")
+    if pd.isna(anomaly) or pd.isna(count):
         return None
-    if flags is None or pd.isna(flags):
-        return float(anomaly)
-    return float(w_anomaly * anomaly + w_flags * flags)
+    return COUNT_MULTIPLIER * int(count) + float(anomaly)
 
 
-def measure_levels(priorities: pd.Series) -> dict:
-    """Seuils MESURES sur la distribution, jamais 25/50/75.
-
-    Terciles du sous-groupe le plus prioritaire, meme methode que les
-    niveaux de risque du modele : le corpus decide ou sont ses propres
-    ruptures.
-    """
-    valides = priorities.dropna()
-    return {
-        "p60": float(valides.quantile(0.60)),
-        "p80": float(valides.quantile(0.80)),
-        "p90": float(valides.quantile(0.90)),
-    }
-
-
-def assign_level(raw, confidence: str, seuils: dict) -> str:
+def assign_level(raw, confidence: str) -> str:
+    """Le niveau se lit directement sur la tranche de `raw` (le compte de
+    flags actifs, avant le point flottant du score) — jamais sur un seuil
+    mesure/quantile : c'est deja discret 0-3, ca ne beneficie d'aucun
+    lissage supplementaire."""
     if raw is None or pd.isna(raw):
         return "Donnees insuffisantes"
-    if raw >= seuils["p90"]:
-        level = "Tres prioritaire"
-    elif raw >= seuils["p80"]:
-        level = "Prioritaire"
-    elif raw >= seuils["p60"]:
-        level = "A surveiller"
-    else:
-        level = "Faible"
+    level = LEVEL_BY_COUNT[int(raw // COUNT_MULTIPLIER)]
 
     # LE garde-fou : une confiance faible interdit les deux niveaux hauts.
-    # Un marche tres atypique dont on ne sait presque rien voit son score
+    # Un marche a 3/3 flags dont on ne sait presque rien voit son niveau
     # porte surtout par ce qu'on ignore.
     if confidence == "Faible" and level in ("Tres prioritaire", "Prioritaire"):
         return CAPPED_LEVEL
     return level
-
-
-def compare_formulations(df: pd.DataFrame) -> dict:
-    """Trois ponderations comparees, pour montrer ce que le choix change.
-
-    Sans verite terrain, aucune ne peut etre declaree meilleure. Ce qu'on
-    peut mesurer, c'est leur ACCORD : si les trois classent les marches
-    presque pareil, le choix du poids importe peu et le resultat est
-    robuste ; si elles divergent, le poids devient une decision lourde
-    qu'il faut assumer explicitement.
-    """
-    variantes = {"equilibre_50_50": (0.5, 0.5),
-                 "anomalie_dominante_70_30": (0.7, 0.3),
-                 "red_flags_dominants_30_70": (0.3, 0.7)}
-    scores = {}
-    for nom, (wa, wf) in variantes.items():
-        scores[nom] = df.apply(lambda r: compute_priority_raw(r, wa, wf), axis=1)
-
-    ref = scores["equilibre_50_50"]
-    out = {}
-    for nom, serie in scores.items():
-        commun = pd.concat([ref, serie], axis=1).dropna()
-        top20_ref = set(ref.dropna().nlargest(20).index)
-        top20_var = set(serie.dropna().nlargest(20).index)
-        out[nom] = {
-            "correlation_rangs_vs_equilibre": round(
-                float(commun.iloc[:, 0].corr(commun.iloc[:, 1], method="spearman")), 3),
-            "top20_communs_avec_equilibre": len(top20_ref & top20_var),
-        }
-    return out
 
 
 def main() -> int:
@@ -213,7 +154,7 @@ def main() -> int:
          "data_completeness", "risk_level"]]
     flags = pd.read_parquet(RED_FLAGS_PATH)[
         ["award_id", "red_flag_score", "red_flag_count", "red_flags_evaluable",
-         "red_flags_triggered"]]
+         "red_flags_triggered", "priority_flag_count", "priority_flags_evaluable"]]
     dq = pd.read_parquet(DATA_QUALITY_PATH)[
         ["award_id", "data_quality_score", "data_quality_level",
          "invalid_fields_count"]]
@@ -221,31 +162,19 @@ def main() -> int:
 
     df["confidence_level"] = df.apply(compute_confidence, axis=1)
     df["priority_raw"] = df.apply(compute_priority_raw, axis=1)
-    seuils = measure_levels(df["priority_raw"])
     df["priority_score"] = df["priority_raw"].round(1)
     df["priority_level"] = df.apply(
-        lambda r: assign_level(r["priority_raw"], r["confidence_level"], seuils), axis=1)
+        lambda r: assign_level(r["priority_raw"], r["confidence_level"]), axis=1)
 
     print("=== formule ===")
-    print(f"  priority_raw = {W_ANOMALY} x anomaly_score + {W_RED_FLAGS} x red_flag_score")
-    print("  La comparaison aux pairs n'est PAS un terme separe : elle alimente")
-    print("  deja RF03, donc red_flag_score. L'ajouter compterait deux fois.")
-    print("  La qualite des donnees n'est PAS dans le score : elle plafonne le")
-    print("  niveau (voir plus bas).")
-
-    print("\n=== comparaison de trois ponderations ===")
-    comp = compare_formulations(df)
-    for nom, res in comp.items():
-        print(f"  {nom:<28} rho(Spearman)={res['correlation_rangs_vs_equilibre']:+.3f}  "
-              f"Top20 communs={res['top20_communs_avec_equilibre']}/20")
-    print("  Aucune n'est 'meilleure' : sans verite terrain, on ne mesure que")
-    print("  leur accord. Le 50/50 est retenu parce qu'aucune mesure ne justifie")
-    print("  d'avantager l'une des deux composantes.")
-
-    print("\n=== seuils mesures sur la distribution ===")
-    print(f"  Tres prioritaire : priority >= {seuils['p90']:.1f}  (P90)")
-    print(f"  Prioritaire      : >= {seuils['p80']:.1f}  (P80)")
-    print(f"  A surveiller     : >= {seuils['p60']:.1f}  (P60)")
+    print("  niveau = f(priority_flag_count, nombre de RF01/RF02/RF03 actifs) :")
+    for count, level in LEVEL_BY_COUNT.items():
+        print(f"    {count}/3 actif(s) -> {level}")
+    print(f"  priority_raw = {COUNT_MULTIPLIER:.0f} x priority_flag_count + "
+          f"anomaly_score_0_100 (0-100)")
+    print("  Le compte fixe TOUJOURS le niveau ; le score du modele (entraine")
+    print("  sur ces memes 3 flags, ai/train_market_model.py) ne fait que")
+    print("  departager les marches a egalite de compte, jamais changer de niveau.")
 
     print("\n=== confiance ===")
     print(df["confidence_level"].value_counts().to_string())
@@ -263,12 +192,12 @@ def main() -> int:
 
     # --- le garde-fou a-t-il servi ? ------------------------------------- #
     sans_plafond = df.apply(
-        lambda r: assign_level(r["priority_raw"], "Elevee", seuils), axis=1)
+        lambda r: assign_level(r["priority_raw"], "Elevee"), axis=1)
     plafonnes = int(((sans_plafond.isin(["Tres prioritaire", "Prioritaire"]))
                      & (df["priority_level"] == CAPPED_LEVEL)).sum())
     print(f"\n=== effet du plafond de confiance ===")
     print(f"  {plafonnes} marches auraient ete classes prioritaires sur leur seul")
-    print(f"  score, mais leur confiance est faible : ils sont ramenes a "
+    print(f"  compte de flags, mais leur confiance est faible : ils sont ramenes a "
           f"'{CAPPED_LEVEL}'.")
     print("  Ils restent visibles et gardent leur score — ils ne sont pas caches,")
     print("  ils sont presentes pour ce qu'ils sont : un signal sur peu de donnees.")
@@ -276,16 +205,15 @@ def main() -> int:
     print("\n=== 10 marches en tete ===")
     top = df.nlargest(10, "priority_raw")[
         ["award_id", "reference", "priority_score", "priority_level",
-         "confidence_level", "data_quality_score", "red_flag_count",
+         "confidence_level", "data_quality_score", "priority_flag_count",
          "stability_frequency"]]
     print(top.to_string(index=False))
 
     PRIORITY_PATH.parent.mkdir(parents=True, exist_ok=True)
     df.to_parquet(PRIORITY_PATH, index=False)
     PRIORITY_REPORT_PATH.write_text(json.dumps({
-        "formule": {"w_anomaly": W_ANOMALY, "w_red_flags": W_RED_FLAGS},
-        "seuils": seuils,
-        "formulations_comparees": comp,
+        "formule": {"count_multiplier": COUNT_MULTIPLIER,
+                    "level_by_count": LEVEL_BY_COUNT},
         "distribution_niveaux": {k: int(v) for k, v in dist.items()},
         "distribution_confiance": {k: int(v) for k, v in
                                    df["confidence_level"].value_counts().items()},

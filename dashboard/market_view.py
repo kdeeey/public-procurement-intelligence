@@ -72,6 +72,22 @@ FLAG_ICON = {True: "🔴", False: "🟢", None: "⚪"}
 FLAG_TEXT = {True: "actif", False: "inactif", None: "non evaluable"}
 
 
+def _merge_new_columns(df: pd.DataFrame, other: pd.DataFrame) -> pd.DataFrame:
+    """Fusionne `other` sur `award_id` en n'apportant que les colonnes
+    ABSENTES de `df`.
+
+    Necessaire depuis la refonte "red flags only" : `market_anomaly_scores
+    .parquet` transporte desormais TOUT `market_red_flags.parquet` en
+    passe-plat (RF01-06, priority_flag_count, les colonnes de comparaison
+    aux pairs...), puisque `ai/train_market_model.py` lit ce fichier
+    directement. Une fusion naive sur les memes cles produirait des paires
+    `_x`/`_y` au lieu d'une colonne exploitable — verifie a l'ecran, pas
+    seulement suppose.
+    """
+    nouvelles = [c for c in other.columns if c == "award_id" or c not in df.columns]
+    return df.merge(other[nouvelles], on="award_id", how="left")
+
+
 @st.cache_data(ttl=60)
 def load_markets() -> pd.DataFrame:
     """Scores + red flags + features, joints au grain marche.
@@ -83,23 +99,17 @@ def load_markets() -> pd.DataFrame:
         return pd.DataFrame()
     df = pd.read_parquet(SCORES_PATH)
     if RED_FLAGS_PATH.exists():
-        flags = pd.read_parquet(RED_FLAGS_PATH)
-        flag_cols = [c for c in flags.columns if c.startswith("RF")] + [
-            "red_flag_count", "red_flags_evaluable", "red_flags_triggered",
-            "red_flag_score", "explication"]
-        df = df.merge(flags[["award_id"] + [c for c in flag_cols if c in flags.columns]],
-                      on="award_id", how="left")
+        df = _merge_new_columns(df, pd.read_parquet(RED_FLAGS_PATH))
     if EXPLANATIONS_PATH.exists():
-        expl = pd.read_parquet(EXPLANATIONS_PATH)
-        df = df.merge(expl, on="award_id", how="left")
+        df = _merge_new_columns(df, pd.read_parquet(EXPLANATIONS_PATH))
     if DATA_QUALITY_PATH.exists():
-        df = df.merge(pd.read_parquet(DATA_QUALITY_PATH), on="award_id", how="left")
+        df = _merge_new_columns(df, pd.read_parquet(DATA_QUALITY_PATH))
     if PEER_PATH.exists():
-        df = df.merge(pd.read_parquet(PEER_PATH), on="award_id", how="left")
+        df = _merge_new_columns(df, pd.read_parquet(PEER_PATH))
     if PRIORITY_PATH.exists():
         prio = pd.read_parquet(PRIORITY_PATH)[
             ["award_id", "priority_score", "priority_level", "confidence_level"]]
-        df = df.merge(prio, on="award_id", how="left")
+        df = _merge_new_columns(df, prio)
     return df
 
 

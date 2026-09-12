@@ -861,6 +861,45 @@ def render_stability_dots(value) -> str:
             f'<span style="font-size:12px;color:{TOKENS["n700"]}">{n}/10</span></span>')
 
 
+def render_flag_ladder(count, evaluable=3, big: bool = False) -> str:
+    """3 segments — un par red flag prioritaire (RF01/RF02/RF03) — rempli
+    quand actif, pointillé quand non évaluable, neutre sinon. La teinte des
+    segments actifs suit le rôle de priorité du COMPTE total (`PRIORITY_ROLE`
+    appliqué à 0/1/2/3), jamais une couleur par flag individuel : c'est le
+    compte, pas un flag pris seul, qui décide `priority_level`
+    (ai/priority_score.py) depuis la refonte "red flags only".
+    """
+    if is_missing(count):
+        return '<span class="pmmp-caption">Non disponible</span>'
+    n = max(0, min(3, int(count)))
+    ev = 3 if is_missing(evaluable) else max(0, min(3, int(evaluable)))
+    role = {0: "low", 1: "mid", 2: "high", 3: "crit"}[n]
+    color = RISK[role]["base"]
+    size = "22px" if big else "16px"
+    height = "10px" if big else "8px"
+    segs = []
+    for i in range(3):
+        if i < n:
+            style = f"background:{color}"
+        elif i < ev:
+            style = f"background:{TOKENS['divider']}"
+        else:
+            style = (f"background:{TOKENS['n200']};"
+                     f"outline:1px dashed {TOKENS['n400']};outline-offset:-1px")
+        segs.append(f'<span style="width:{size};height:{height};border-radius:2px;'
+                    f'flex:0 0 {size};{style}"></span>')
+    tip = (f"{n} red flag(s) prioritaire(s) actif(s) sur {ev} évaluable(s) "
+           f"(RF01 faible concurrence, RF02 exclusions, RF03 montant) — "
+           "c'est ce compte, pas le score du modèle, qui décide le niveau "
+           "de priorité.")
+    label_size = "14px" if big else "12px"
+    return (f'<span title="{_esc(tip)}" style="display:inline-flex;gap:5px;'
+            f'align-items:center"><span style="display:inline-flex;gap:3px;'
+            f'align-items:center">{"".join(segs)}</span>'
+            f'<span style="font-size:{label_size};font-weight:500;'
+            f'color:{TOKENS["n800"]}">{n}/3</span></span>')
+
+
 def render_disclaimer(compact: bool = False) -> None:
     size = "12.5px" if compact else "13px"
     st.markdown(f'<div class="pmmp-note" style="font-size:{size}">{DISCLAIMER}</div>',

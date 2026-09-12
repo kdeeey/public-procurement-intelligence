@@ -71,52 +71,43 @@ st.set_page_config(page_title="PMMP — Analyse des marchés publics",
 @st.dialog("Méthodologie", width="large")
 def _panel_methodologie() -> None:
     kpis = da.corpus_kpis()
-    bands = da.measured_risk_bands()
-    study = da.load_json_report("contamination_study.json")
     registry_size = len(__import__(
         "dashboard.detail_panel", fromlist=["x"]).red_flag_registry())
 
-    st.markdown("**Ce que mesure le score d'anomalie**")
+    st.markdown("**Ce qui décide la priorité d'un marché**")
     st.write(
-        "Un modèle Isolation Forest isole les marchés dont la combinaison de "
-        "variables est rare dans le corpus. Un score élevé signifie uniquement : "
-        "ce marché présente des caractéristiques inhabituelles par rapport aux "
-        "autres marchés du corpus."
+        "Le niveau de priorité est une fonction directe du nombre de red "
+        "flags prioritaires actifs parmi trois règles nommées — RF01 (faible "
+        "concurrence), RF02 (exclusions atypiques), RF03 (montant atypique) : "
+        "0 actif → Faible, 1 → À surveiller, 2 → Prioritaire, 3 → Très "
+        "prioritaire."
         + (f" {kpis['scorables']} marchés sont scorés sur {kpis['total']} au corpus."
            if kpis["scorables"] and kpis["total"] else ""))
+
+    st.markdown("**Le rôle du modèle (Isolation Forest)**")
+    st.write(
+        "Le modèle est entraîné sur ces mêmes 3 red flags et ne sert qu'à "
+        "départager deux marchés à égalité de compte — jamais à changer leur "
+        "niveau de priorité. Son score (visible comme « diagnostic » dans le "
+        "tableau et la fiche marché) est une valeur d'appoint, pas une "
+        "mesure de risque en soi.")
 
     st.markdown("**Red flags métier**")
     st.write(
         f"{registry_size} règles explicites sont évaluées indépendamment du modèle. "
         "Chaque règle peut être active, inactive, ou non évaluable lorsque "
         "l'information nécessaire n'a pas été lue dans le document. Une règle non "
-        "évaluable n'est jamais repliée sur « inactive ».")
+        "évaluable n'est jamais repliée sur « inactive ». RF05 (procédure rare) "
+        "et RF06 (signaux multiples) restent affichés mais n'entrent pas dans le "
+        "compte qui décide la priorité.")
 
-    st.markdown("**Niveaux de risque — bornes mesurées**")
-    if bands:
-        st.write(
-            f"Faible jusqu'à {bands['faible_max']:.1f}, Modéré jusqu'à "
-            f"{bands['modere_max']:.1f}, Élevé jusqu'à {bands['eleve_max']:.1f}, "
-            f"Critique au-delà. La frontière du niveau Faible est celle que le "
-            f"modèle choisit lui-même ; le sous-groupe signalé est ensuite coupé "
-            f"en terciles mesurés de sa propre distribution. Jamais 25/50/75."
-            .replace(".", ","))
-    else:
-        st.write("Bornes non calculables : aucun marché scoré n'est chargé.")
-
-    st.markdown("**Priorité d'analyse**")
+    st.markdown("**Le plafond de confiance**")
     st.write(
-        "La priorité combine le score du modèle et le score de red flags, puis "
-        "elle est plafonnée par le niveau de confiance. Un score élevé assis sur "
-        "des données faibles n'est pas classé prioritaire."
+        "Un marché à 3 red flags actifs dont on ne sait presque rien n'est pas "
+        "classé prioritaire pour autant : le niveau de confiance (qualité des "
+        "données + stabilité du modèle) plafonne alors le niveau."
         + (f" {len(da.capped_awards())} marché(s) sont concernés par ce plafond."
            if da.capped_awards() else ""))
-    if study.get("chosen") is not None:
-        st.write(
-            f"Le nombre de marchés signalés est fixé par le paramètre de "
-            f"priorisation du modèle (contamination = {study['chosen']}), comparé "
-            f"à {len(study.get('candidates', {}))} valeurs avant d'être retenu. "
-            f"C'est une capacité d'examen, pas un taux d'irrégularité.")
 
     st.markdown("**Absence de vérité terrain**")
     st.write(

@@ -37,6 +37,17 @@ A dire tel quel en soutenance, sans arrondir :
     (`repose_sur_impute`), sinon elle donnerait a une mediane substituee
     l'apparence d'une observation.
 
+CE QUE CE MODULE N'EXPLIQUE PLUS DEPUIS LA REFONTE "RED FLAGS ONLY"
+----------------------------------------------------------------------
+Le modele s'entraine desormais sur RF01/RF02/RF03 (+ leurs drapeaux de
+disponibilite) — voir ai/train_market_model.py. SHAP/ablation expliquent
+donc pourquoi le modele regroupe ce marche avec telle COMBINAISON de red
+flags jugee rare, jamais pourquoi ce marche est prioritaire : la priorite
+se lit directement sur le compte de flags actifs (ai/priority_score.py),
+qui ne depend pas de ce module. Ce bloc reste un diagnostic technique du
+modele, affiche en second plan dans le dashboard, pas une justification de
+decision.
+
     python -m ai.market_explain
 """
 
@@ -58,7 +69,6 @@ from ai.train_market_model import (  # noqa: E402
     SCORES_PATH, prepare_market_matrix,
 )
 
-MARKET_FEATURES_PATH = REPO / "data/processed/analytics/market_features.parquet"
 EXPLANATIONS_PATH = REPO / "data/processed/analytics/market_explanations.parquet"
 AGREEMENT_PATH = REPO / "data/processed/analytics/explanation_agreement.json"
 
@@ -67,19 +77,12 @@ TOP_K = 3
 # Libelles lisibles par un analyste — le dashboard n'affiche jamais un nom
 # de colonne brut.
 FEATURE_LABELS = {
-    "log_montant_ttc": "montant du marché",
-    "nb_soumissionnaires": "nombre de soumissionnaires",
-    "nb_concurrents_ecartes": "nombre de concurrents écartés",
-    "exclusion_rate": "part de concurrents écartés",
+    "RF01": "faible concurrence (RF01)",
+    "RF02": "exclusions atypiques (RF02)",
+    "RF03": "montant atypique (RF03)",
     "has_amount_data": "disponibilité du montant",
     "has_competitor_data": "disponibilité de la liste des concurrents",
     "has_exclusion_data": "disponibilité de la liste des écartés",
-    "mode_ao_ouvert": "procédure : appel d'offres ouvert",
-    "mode_ao_simplifie": "procédure : appel d'offres simplifié",
-    "mode_autre": "procédure : autre",
-    "cat_travaux": "secteur : travaux",
-    "cat_fournitures": "secteur : fournitures",
-    "cat_services": "secteur : services",
 }
 
 
@@ -135,7 +138,10 @@ def build_sentence(tops, imputed_cols: set[str]) -> str:
     return ("Facteurs qui contribuent le plus au score de ce marché, par ordre "
             "de contribution : " + " ; ".join(parts) + ". "
             "Ces facteurs expliquent la SORTIE DU MODÈLE, pas une irrégularité : "
-            "ils indiquent en quoi ce marché se distingue des autres du corpus.")
+            "ils indiquent en quoi ce marché se distingue des autres du corpus. "
+            "Ce score ne classe jamais un marché dans un niveau de priorité "
+            "supérieur : il départage seulement les marchés à égalité de red "
+            "flags actifs.")
 
 
 def main() -> int:

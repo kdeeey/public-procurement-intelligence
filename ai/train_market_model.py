@@ -1,86 +1,60 @@
 """
-Isolation Forest au grain MARCHE (refonte du 28/08/2026).
+Isolation Forest au grain MARCHE, entraine sur les RED FLAGS (refonte
+"red flags only" — remplace la version du 28/08/2026 entrainee sur 11
+features numeriques/one-hot).
 
-Remplace ai/train_isolation_forest.py comme modele principal. La
-justification complete de la bascule est dans
-bigdata/spark/jobs/build_market_features.py ; en une phrase : 93,3 % des
-entreprises n'ont qu'un seul marche, donc les "taux" par entreprise etaient
-des observations uniques deguisees en frequences, et le modele apprenait la
-profondeur de presence dans le corpus (100 % des entreprises a 2 marches
-signalees anormales contre 13,9 % de celles a 1 marche).
+CE QUI CHANGE, ET POURQUOI
+--------------------------
+Avant cette refonte, le modele lisait `log_montant_ttc`, `nb_soumissionnaires`,
+`exclusion_rate`, et des one-hot procedure/secteur — des grandeurs
+continues, dans lesquelles Isolation Forest peut genuinement trouver des
+combinaisons rares. Decision (confirmee avec l'utilisateur) : le modele
+s'entraine desormais sur les **3 red flags prioritaires** eux-memes —
+RF01 (faible concurrence), RF02 (exclusions atypiques), RF03 (montant
+atypique), calcules en amont par `ai/market_red_flags.py` — plutot que sur
+les grandeurs brutes qui les ont produits.
 
-POPULATION MODELISEE : LES MARCHES ATTRIBUES
---------------------------------------------
-Sur 454 marches, 314 sont ATTRIBUE et 140 INFRUCTUEUX. Seuls les premiers
-entrent dans le modele. Ce n'est pas un filtrage de confort, et la
-justification a ete MESUREE plutot qu'affirmee :
+CONSEQUENCE MECANIQUE, A NE PAS SE CACHER : avec 3 entrees booleennes, il
+n'existe que 2^3 = 8 combinaisons possibles. Isolation Forest ne peut plus
+trouver "un point rare dans un espace continu" — il ne peut plus que classer
+ces 8 combinaisons par leur rarete respective dans le corpus. C'est un
+signal reel mais etroit, donc son role est desormais precisement borne :
 
-    ATTRIBUE     314 marches — gagnant 205 (65,3 %), montant 142 (45,2 %)
-    INFRUCTUEUX  140 marches — gagnant   0 ( 0,0 %), montant  25 (17,9 %)
+  * `priority_level` (le niveau : Faible / A surveiller / Prioritaire /
+    Tres prioritaire) est decide UNIQUEMENT par le COMPTE de flags actifs
+    parmi {RF01, RF02, RF03} — voir `ai/priority_score.py`. Le modele ne
+    peut JAMAIS faire changer un marche de niveau.
+  * `anomaly_score_0_100` (produit ici) ne sert plus qu'a DEPARTAGER des
+    marches a EGALITE de compte de flags actifs — deux marches "2/3" sont
+    ordonnes par la combinaison que le modele juge la plus rare, plutot que
+    par un ordre arbitraire. Voir `ai/priority_score.py::priority_raw`
+    (compte de flags x1000 + anomaly_score_0_100 : le compte domine
+    toujours, l'anomalie ne fait que trier a l'interieur d'un meme compte).
 
-Un marche infructueux n'a AUCUN attributaire — 0/140, sans exception. Il
-n'y a donc rien a comparer : les red flags de ce projet portent tous sur une
-attribution (qui a gagne, a quel montant, avec combien de concurrents
-ecartes). Melanger les deux populations apprendrait surtout au modele a
-separer les deux statuts, une tautologie, pas un signal de risque.
+POPULATION MODELISEE : LES MARCHES ATTRIBUES, AU MOINS 2/3 FLAGS EVALUABLES
+----------------------------------------------------------------------------
+Inchange dans son principe (voir `ai/market_population.py` pour la fonction
+partagee) : seuls les marches ATTRIBUE entrent dans le modele — un marche
+INFRUCTUEUX n'a par construction aucun attributaire, donc aucun des 3 red
+flags prioritaires n'a de sens a lui appliquer une detection d'anomalie.
+La porte `data_completeness >= MIN_DATA_COMPLETENESS` (2 des 3 informations
+montant/concurrents/exclusions reellement extraites) reste la meme —
+elle correspond exactement a "au moins 2 des 3 red flags prioritaires sont
+evaluables", puisque ce sont les memes 3 dimensions. Un marche sous ce
+seuil recoit `scorable = False` et aucun score, jamais un niveau invente.
 
-Nuance a ne pas gommer : 25 marches infructueux (17,9 %) portent quand meme
-un montant. Ce n'est donc pas "aucune donnee par construction" — c'est
-l'ABSENCE D'ATTRIBUTAIRE qui est structurelle et qui fonde l'exclusion, pas
-l'absence de montant.
-
-Les 140 marches infructueux ne sont pas perdus : ils restent dans
-market_features.parquet, comptes et affichables, simplement non scores.
-Le rapport le dit explicitement plutot que de laisser croire que le corpus
-fait 314 marches.
-
-MARCHES NON SCORABLES — LE PIEGE TROUVE EN VERIFIANT, PAS EN RELISANT
----------------------------------------------------------------------
-Premiere version de ce modele, Top 10 inspecte : les marches les plus
-"atypiques" etaient ceux dont on ne savait RIEN. Mesure faite aussitot,
-sur les 314 marches attribues, selon le nombre d'informations reellement
-extraites parmi montant / concurrents / exclusions :
-
-    0 information connue :   7 marches ->  7 signales (100,0 %)
-    1 information connue :  28 marches ->  9 signales ( 32,1 %)
-    2 informations       : 151 marches ->  8 signales (  5,3 %)
-    3 informations       : 128 marches ->  8 signales (  6,3 %)
-
-Le modele detectait donc le TROU D'EXTRACTION, pas le marche atypique —
-exactement la meme classe d'artefact que la profondeur de corpus au niveau
-entreprise, que cette refonte etait censee supprimer. Un marche dont tout
-est impute ressemble forcement a peu d'autres : c'est l'imputation qui le
-rend rare, pas son contenu.
-
-REGLE RETENUE : un marche n'est score que si AU MOINS 2 des 3 informations
-sont reellement presentes (`data_completeness >= 2`). Les autres recoivent
-`scorable = False` et AUCUN score — comptes et affiches comme "donnees
-insuffisantes pour analyser", jamais comme "atypiques".
-
-Le seuil vient de la mesure ci-dessus, il n'est pas choisi a priori : les
-deux groupes >= 2 ont des taux de signalement quasi identiques (5,3 % et
-6,3 %), les deux groupes < 2 sont a 32 % et 100 %. La rupture est entre 1
-et 2, pas ailleurs.
-
-Ce que ca coute, dit franchement : 35 marches sur 314 (11,1 %) sortent de
-l'analyse. Les signaler aurait ete pire — c'est presenter un defaut de
-notre propre chaine d'extraction comme une anomalie de marche public.
-
-IMPUTATION — EXPLICITE, SIGNALEE, JAMAIS UN ZERO
--------------------------------------------------
-Isolation Forest n'accepte pas de NaN. Chaque colonne a valeurs manquantes
-est donc imputee A LA MEDIANE des marches qui ont la donnee, jamais a 0 (un
-0 se lit comme une valeur extreme basse, pas comme un inconnu), et toujours
-accompagnee de son drapeau `has_*_data` qui reste, lui, une vraie
-observation. Le modele peut ainsi apprendre que "impute" n'est pas en soi
-un signal.
-
-`single_bidder` n'est PAS une entree du modele : il est entierement
-derivable de `nb_soumissionnaires`, donc redondant, et l'imputer forcerait
-a choisir 0 ou 1 pour un marche dont on ignore le nombre de
-soumissionnaires — exactement la confusion UNKNOWN/ZERO que cette refonte
-supprime. Il reste calcule pour le red flag RF01, qui, lui, ne se declenche
-que lorsque `has_competitor_data = 1`.
+IMPUTATION DES RED FLAGS NON EVALUABLES — 0, PAS UNE MEDIANE
+----------------------------------------------------------------
+Isolation Forest n'accepte pas de NaN/None. Contrairement aux grandeurs
+continues de l'ancien modele (imputees a leur mediane), un red flag
+booleen non evaluable est impute a 0 ("non declenche") — imputer a une
+"mediane" n'aurait aucun sens sur un booleen — toujours accompagne de son
+drapeau de disponibilite deja present dans market_features.parquet
+(`has_competitor_data` pour RF01, `has_exclusion_data` pour RF02,
+`has_amount_data` pour RF03), pour que le modele puisse au moins
+distinguer "flag non declenche, lu" de "flag non declenche, invente".
+Meme discipline que le reste du projet (jamais un 0 silencieux), appliquee
+a un type booleen plutot qu'a une valeur continue.
 
     python -m ai.train_market_model
 """
@@ -99,7 +73,10 @@ import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
 from sklearn.ensemble import IsolationForest  # noqa: E402
 
-MARKET_FEATURES_PATH = REPO / "data/processed/analytics/market_features.parquet"
+from ai.market_population import MIN_DATA_COMPLETENESS  # noqa: E402
+from ai.market_red_flags import PRIORITY_FLAG_IDS  # noqa: E402
+
+RED_FLAGS_PATH = REPO / "data/processed/analytics/market_red_flags.parquet"
 MODEL_PATH = REPO / "ai/models/isolation_forest_market.joblib"
 FEATURE_COLUMNS_PATH = REPO / "ai/models/market_feature_columns.json"
 SCORES_PATH = REPO / "data/processed/analytics/market_anomaly_scores.parquet"
@@ -107,47 +84,40 @@ CONTAMINATION_REPORT_PATH = REPO / "data/processed/analytics/contamination_study
 
 RANDOM_STATE = 42
 
-# Nombre minimal d'informations reellement extraites (parmi montant,
-# concurrents, exclusions) pour qu'un marche soit scorable — seuil MESURE,
-# voir la docstring du module.
-MIN_DATA_COMPLETENESS = 2
-
 STABILITY_SEEDS = list(range(10))
 STABILITY_TOP_N = 20
 
-# Colonnes numeriques imputees a la mediane, chacune avec son drapeau.
-IMPUTED_COLUMNS = {
-    "log_montant_ttc": "has_amount_data",
-    "nb_soumissionnaires": "has_competitor_data",
-    "nb_concurrents_ecartes": "has_exclusion_data",
-    "exclusion_rate": "has_exclusion_data",
-}
+# Les 3 red flags prioritaires -> leur drapeau de disponibilite deja
+# present dans market_features.parquet (repris tel quel dans
+# market_red_flags.parquet). Une entree non evaluable (None) est imputee
+# a 0, jamais a une mediane — voir la docstring du module.
+IMPUTED_COLUMNS = dict(zip(PRIORITY_FLAG_IDS,
+                          ("has_competitor_data", "has_exclusion_data", "has_amount_data")))
 
-# Colonnes deja completes a 100 % (mesure sur les 454 marches) : aucune
-# imputation, aucun drapeau necessaire.
-COMPLETE_COLUMNS = [
-    "has_amount_data", "has_competitor_data", "has_exclusion_data",
-    "mode_ao_ouvert", "mode_ao_simplifie", "mode_autre",
-    "cat_travaux", "cat_fournitures", "cat_services",
-]
+# Les drapeaux de disponibilite eux-memes : ce sont les 3 memes informations
+# que data_completeness/scorable, donc jamais moins de 2 des 3 a 1 dans la
+# population scoree — mais les 3 restent des colonnes du modele (elles
+# peuvent varier individuellement meme quand leur somme est fixee au-dessus
+# du seuil).
+COMPLETE_COLUMNS = list(IMPUTED_COLUMNS.values())
 
 MODEL_FEATURE_COLUMNS = list(IMPUTED_COLUMNS) + COMPLETE_COLUMNS
 
 
 def prepare_market_matrix(pdf: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
-    """market_features.parquet -> matrice numerique sans NaN.
+    """market_red_flags.parquet -> matrice numerique sans NaN.
 
-    Retourne aussi les medianes utilisees, pour qu'elles soient ecrites dans
-    le rapport plutot que de rester invisibles dans le code.
+    Retourne aussi les valeurs d'imputation utilisees (toujours 0 pour un
+    red flag, jamais une mediane), pour qu'elles soient ecrites dans le
+    rapport plutot que de rester invisibles dans le code.
     """
     df = pdf.copy()
-    medians = {}
+    imputed_values = {}
     for col in IMPUTED_COLUMNS:
-        df[col] = pd.to_numeric(df[col], errors="coerce")
-        median = float(df[col].median())
-        medians[col] = median
+        df[col] = pd.to_numeric(df[col], errors="coerce")  # True/False/None -> 1.0/0.0/NaN
         df[f"{col}_imputed"] = df[col].isna().astype(int)
-        df[col] = df[col].fillna(median)
+        df[col] = df[col].fillna(0.0)
+        imputed_values[col] = 0.0
 
     for col in COMPLETE_COLUMNS:
         df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0).astype(int)
@@ -155,24 +125,17 @@ def prepare_market_matrix(pdf: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
     matrix = df[["award_id"] + MODEL_FEATURE_COLUMNS].copy()
     assert not matrix[MODEL_FEATURE_COLUMNS].isna().any().any(), (
         "NaN residuel apres imputation — diagnostiquer avant d'entrainer")
-    return matrix, medians
+    return matrix, imputed_values
 
 
 def drop_constant_features(matrix: pd.DataFrame) -> list[str]:
     """Ecarte les colonnes qui ne varient plus dans la population scoree.
 
-    Trouve en verifiant les sorties SHAP, pas en relisant le code :
-    `has_competitor_data` ressortait avec une importance EXACTEMENT nulle
-    (0.00000) dans les deux methodes d'explication. Cause : le filtre de
-    completude (MIN_DATA_COMPLETENESS) ne laisse passer que des marches
-    ayant au moins 2 informations sur 3, et il se trouve que tous les
-    marches retenus ont la rubrique concurrents — la colonne vaut donc 1
-    partout, 279 fois sur 279.
-
-    Une colonne constante n'apporte aucune information a un modele qui
-    tire ses features au hasard : elle occupe une place dans le tirage
-    sans jamais pouvoir separer deux points. La correlation ne peut pas la
-    detecter (elle vaut NaN sur une constante), d'ou ce controle separe.
+    Avec seulement 6 colonnes booleennes, une colonne constante est
+    plausible (ex. si tous les marches scores ont has_amount_data=1) — le
+    controle reste necessaire pour la meme raison qu'avant : une colonne
+    constante n'apporte rien a un modele qui tire ses features au hasard,
+    et la correlation ne peut pas la detecter (NaN sur une constante).
     """
     dropped = []
     for col in matrix.columns:
@@ -188,11 +151,12 @@ def drop_constant_features(matrix: pd.DataFrame) -> list[str]:
 def drop_redundant_features(matrix: pd.DataFrame, threshold: float = 0.95) -> list[str]:
     """Ecarte une colonne d'une paire trop correlee.
 
-    Meme raisonnement que le correctif de redondance deja applique au modele
-    entreprise (ai/train_isolation_forest.py) : Isolation Forest tire un
-    sous-ensemble de features au hasard a chaque coupe, donc un signal
-    present en double a deux fois plus de chances d'etre choisi, sans etre
-    deux fois plus informatif. La correlation est MESUREE ici, pas supposee.
+    Meme raisonnement que l'ancien modele marche/entreprise : Isolation
+    Forest tire un sous-ensemble de features au hasard a chaque coupe, donc
+    un signal present en double a deux fois plus de chances d'etre choisi.
+    Ici, un red flag et son propre drapeau de disponibilite pourraient
+    corréler fortement si le flag est presque toujours evaluable ET presque
+    toujours inactif quand il l'est — mesure, pas suppose.
     """
     corr = matrix[MODEL_FEATURE_COLUMNS].corr().abs()
     dropped = []
@@ -202,9 +166,6 @@ def drop_redundant_features(matrix: pd.DataFrame, threshold: float = 0.95) -> li
                 continue
             r = corr.loc[a, b]
             if r >= threshold:
-                # On retire la SECONDE, en gardant la plus interpretable
-                # (l'ordre de MODEL_FEATURE_COLUMNS place les grandeurs
-                # metier avant les drapeaux).
                 dropped.append(b)
                 print(f"  redondance mesuree r={r:.3f} entre {a!r} et {b!r} "
                       f"-> {b!r} retiree du modele")
@@ -215,11 +176,10 @@ def study_contamination(X: np.ndarray, candidates=(0.05, 0.10, 0.15, "auto")) ->
     """Compare plusieurs valeurs de `contamination` au lieu d'en retenir une
     a l'aveugle.
 
-    `contamination` ne mesure RIEN dans les donnees : c'est un curseur qui
-    fixe combien d'observations seront etiquetees anormales. Le modele
-    entreprise utilisait "auto" et sortait 19,7 % d'anomalies, un chiffre
-    que rien ne justifiait et qui pouvait se lire, a tort, comme "19,7 % des
-    marches sont suspects".
+    Reste utile meme si `anomaly_score_0_100` ne pilote plus le niveau de
+    priorite : `is_anomaly`/`risk_level` restent ecrits a titre diagnostic
+    (voir docstring du module), et ce curseur decide combien de marches
+    portent `is_anomaly=True`.
     """
     report = {}
     for c in candidates:
@@ -238,10 +198,11 @@ def measure_stability(X: np.ndarray, award_ids: np.ndarray,
     """Reentraine le modele avec 10 graines et compte, pour chaque marche,
     dans combien de Top 20 il apparait.
 
-    Sans verite terrain, on ne peut pas mesurer une precision. On peut en
-    revanche mesurer si un resultat TIENT : un marche present dans 10/10 des
-    classements est une anomalie robuste ; un marche present dans 1/10 est
-    un artefact de la graine aleatoire, et le dashboard doit le dire.
+    Avec seulement 8 combinaisons possibles de red flags, de nombreux
+    marches partagent exactement le meme profil — attendre beaucoup plus
+    d'ex aequo qu'avec l'ancien modele continu est le comportement mesure,
+    pas une anomalie de cette fonction. Lire le rapport imprime avant de
+    juger les bandes de confiance qui en decoulent (ai/priority_score.py).
     """
     tops = []
     for seed in STABILITY_SEEDS:
@@ -256,8 +217,6 @@ def measure_stability(X: np.ndarray, award_ids: np.ndarray,
     for top in tops:
         counts.loc[list(top)] += 1
 
-    # Recouvrement moyen entre deux Top 20 (indice de Jaccard) : une mesure
-    # d'ensemble, en plus de la frequence par marche.
     jaccards = [len(a & b) / len(a | b)
                 for i, a in enumerate(tops) for b in tops[i + 1:]]
     print(f"  recouvrement moyen entre deux Top {STABILITY_TOP_N} "
@@ -266,52 +225,41 @@ def measure_stability(X: np.ndarray, award_ids: np.ndarray,
           f"{int((counts == 10).sum())}")
     print(f"  marches apparaissant dans 1 seul Top {STABILITY_TOP_N} : "
           f"{int((counts == 1).sum())}")
-    # DataFrame construit explicitement : Series.reset_index(names=...) n'est
-    # pas disponible dans la version de pandas de l'image ppi-spark.
     return pd.DataFrame({"award_id": counts.index.to_numpy(),
                          "stability_frequency": counts.to_numpy()})
 
 
 def main() -> int:
-    pdf = pd.read_parquet(MARKET_FEATURES_PATH)
-    total = len(pdf)
+    pdf = pd.read_parquet(RED_FLAGS_PATH)
+    total_attribue = len(pdf)
 
-    print("=== population modelisee ===")
-    print(pdf["statut"].value_counts().to_string())
-    # Verifie plutot que suppose : les montants manquent-ils VRAIMENT par
-    # construction chez les infructueux ?
-    for statut, group in pdf.groupby("statut"):
-        n_amount = int(group["has_amount_data"].sum())
-        print(f"  {statut:<12} montant renseigne : {n_amount}/{len(group)} "
-              f"({100 * n_amount / len(group):.1f} %)")
+    print("=== population modelisee (marches ATTRIBUE, depuis market_red_flags.parquet) ===")
+    print(f"  {total_attribue} marches attribues")
+    print(pdf["scorable"].value_counts().rename({True: "scorable", False: "non scorable"})
+          .to_string())
 
-    attribue = pdf[pdf["statut"] == "ATTRIBUE"].reset_index(drop=True)
-    print(f"\n{len(attribue)}/{total} marches ATTRIBUE ; "
-          f"{total - len(attribue)} marches INFRUCTUEUX restent dans la table, "
-          f"non scores (voir docstring).")
-
-    # --- completude, et mise a l'ecart des marches non analysables ------- #
-    attribue["data_completeness"] = attribue[
-        ["has_amount_data", "has_competitor_data", "has_exclusion_data"]].sum(axis=1)
-    attribue["scorable"] = attribue["data_completeness"] >= MIN_DATA_COMPLETENESS
+    print(f"\n=== features du modele : {MODEL_FEATURE_COLUMNS} ===")
+    print(f"  RF01/RF02/RF03 (imputes a 0 si non evaluables) + leurs drapeaux "
+          f"de disponibilite — voir docstring du module pour le role de ce "
+          f"modele (depart en tie-break uniquement, jamais le niveau).")
 
     print("\n=== completude des donnees (marches attribues) ===")
-    for k, g in attribue.groupby("data_completeness"):
+    for k, g in pdf.groupby("data_completeness"):
         marque = "   -> NON SCORABLES" if k < MIN_DATA_COMPLETENESS else ""
         print(f"  {k} information(s) connue(s) sur 3 : {len(g):3d} marches{marque}")
-    n_skipped = int((~attribue["scorable"]).sum())
-    print(f"\n  {n_skipped}/{len(attribue)} marches "
-          f"({100 * n_skipped / len(attribue):.1f} %) ne sont PAS scores : "
+    n_skipped = int((~pdf["scorable"]).sum())
+    print(f"\n  {n_skipped}/{total_attribue} marches "
+          f"({100 * n_skipped / total_attribue:.1f} %) ne sont PAS scores : "
           f"moins de {MIN_DATA_COMPLETENESS} informations extraites.")
     print("  Ils ne sont pas supprimes — ils ressortent avec scorable=False et")
     print("  aucun score, et s'affichent comme 'donnees insuffisantes'.")
 
-    scored = attribue[attribue["scorable"]].reset_index(drop=True)
-    matrix, medians = prepare_market_matrix(scored)
-    print("\n=== imputation (mediane des marches AYANT la donnee) ===")
-    for col, median in medians.items():
+    scored = pdf[pdf["scorable"]].reset_index(drop=True)
+    matrix, imputed_values = prepare_market_matrix(scored)
+    print("\n=== imputation (red flag non evaluable -> 0, jamais une mediane) ===")
+    for col, value in imputed_values.items():
         n_imputed = int(matrix.shape[0] - scored[col].notna().sum())
-        print(f"  {col:<26} mediane={median:>12.4f}  imputes={n_imputed}")
+        print(f"  {col:<8} impute a {value:.0f}  ({n_imputed} marches concernes)")
 
     print("\n=== colonnes constantes dans la population scoree ===")
     constantes = drop_constant_features(matrix[["award_id"] + MODEL_FEATURE_COLUMNS])
@@ -329,18 +277,12 @@ def main() -> int:
     X = matrix[features].to_numpy(dtype=float)
 
     print("\n=== etude de contamination ===")
+    print("  Sert desormais uniquement is_anomaly/risk_level (diagnostic) —")
+    print("  priority_level ne lit plus ce curseur (voir ai/priority_score.py).")
     study = study_contamination(X)
 
-    # Choix argumente, pas arbitraire — voir le commentaire ci-dessous et le
-    # rapport ecrit dans contamination_study.json.
     chosen = 0.10
-    print(f"\n  RETENU : contamination={chosen}")
-    print("  Pourquoi : 'auto' ne repond a aucune question metier et sortait")
-    print("  19,7 % au niveau entreprise, un chiffre qu'aucune mesure ne")
-    print("  soutenait. 10 % fixe une CHARGE DE TRAVAIL D'ANALYSE (~31")
-    print("  marches a examiner sur 314), pas un taux d'irregularite. C'est")
-    print("  un curseur de priorisation : le faire varier change le nombre")
-    print("  de marches remontes, jamais leur classement.")
+    print(f"\n  RETENU : contamination={chosen} (coherent avec le choix historique)")
 
     model = IsolationForest(n_estimators=200, contamination=chosen,
                             random_state=RANDOM_STATE)
@@ -352,34 +294,34 @@ def main() -> int:
     result["anomaly_score"] = scores
     result["is_anomaly"] = labels == -1
     # 0-100, plus haut = plus atypique. Rescale lineaire (pas un rang, qui
-    # aplatirait la forme reelle de la distribution).
+    # aplatirait la forme reelle de la distribution). Role UNIQUE
+    # desormais : departager des marches a egalite de priority_flag_count
+    # dans ai/priority_score.py — jamais decider un niveau seul.
     lo, hi = scores.min(), scores.max()
-    result["anomaly_score_0_100"] = 100 * (hi - scores) / (hi - lo)
+    result["anomaly_score_0_100"] = (
+        100 * (hi - scores) / (hi - lo) if hi > lo else 50.0)
     for col in IMPUTED_COLUMNS:
         result[f"{col}_imputed"] = scored[col].isna().astype(int)
 
-    # Les marches non scorables sont RECOLLES a la sortie, sans score : ils
-    # doivent rester visibles et comptes, jamais disparaitre silencieusement.
-    unscorable = attribue[~attribue["scorable"]].copy()
+    unscorable = pdf[~pdf["scorable"]].copy()
     for col in ("anomaly_score", "anomaly_score_0_100", "stability_frequency"):
         unscorable[col] = None
     unscorable["is_anomaly"] = False
-    # Ni "Faible" ni un niveau quelconque : l'absence de niveau EST
-    # l'information. Un marche non analysable ne doit jamais apparaitre
-    # comme rassurant.
     unscorable["risk_level"] = "Non evaluable"
 
-    # --- niveaux de risque, seuils MESURES ------------------------------- #
-    # Meme principe que l'etage entreprise : "Faible" est la frontiere que le
-    # modele choisit lui-meme (is_anomaly), et le sous-groupe signale est
-    # coupe en terciles mesures de sa propre distribution. Jamais 25/50/75.
+    # --- risk_level : DIAGNOSTIC uniquement desormais, jamais lu par
+    # ai/priority_score.py (voir docstring du module). Conserve pour la
+    # continuite du schema (dashboard/API) et pour comparer, a titre
+    # d'interet technique, ce que le modele isole vs. le compte de flags.
     normal_max = float(result.loc[~result["is_anomaly"], "anomaly_score_0_100"].max())
     anormaux = result.loc[result["is_anomaly"], "anomaly_score_0_100"]
-    t1, t2 = (float(x) for x in anormaux.quantile([1 / 3, 2 / 3]))
 
     def _level(score: float) -> str:
         if score <= normal_max:
             return "Faible"
+        if anormaux.empty:
+            return "Critique"
+        t1, t2 = (float(x) for x in anormaux.quantile([1 / 3, 2 / 3]))
         if score <= t1:
             return "Modere"
         if score <= t2:
@@ -387,37 +329,33 @@ def main() -> int:
         return "Critique"
 
     result["risk_level"] = result["anomaly_score_0_100"].apply(_level)
-    print("\n=== niveaux de risque (seuils mesures, pas 25/50/75) ===")
-    print(f"  Faible   : score <= {normal_max:.1f}  (frontiere choisie par le modele)")
-    print(f"  Modere   : {normal_max:.1f} < score <= {t1:.1f}")
-    print(f"  Eleve    : {t1:.1f} < score <= {t2:.1f}")
-    print(f"  Critique : score > {t2:.1f}")
+    print("\n=== risk_level (DIAGNOSTIC du modele, ne pilote plus priority_level) ===")
     print(result["risk_level"].value_counts().to_string())
 
     print("\n=== stabilite sur 10 graines aleatoires ===")
     stability = measure_stability(X, matrix["award_id"].to_numpy(), chosen)
     result = result.merge(stability, on="award_id", how="left")
 
-    print(f"\n=== marches signales : {int(result['is_anomaly'].sum())}/{len(result)} ===")
-    top = result.sort_values("anomaly_score").head(10)
-    print(top[["award_id", "reference", "anomaly_score_0_100", "stability_frequency",
-               "nb_soumissionnaires", "montant_ttc", "has_amount_data"]].to_string(index=False))
+    print(f"\n=== marches signales par le modele (diagnostic) : "
+          f"{int(result['is_anomaly'].sum())}/{len(result)} ===")
+
+    print("\n=== recoupement avec le compte de flags prioritaires ===")
+    print("  Verifie plutot que suppose : le modele, entraine SUR ces flags,")
+    print("  doit isoler en priorite les combinaisons les plus rares — pas")
+    print("  forcement les comptes les plus eleves (8 combinaisons distinctes,")
+    print("  pas 4 : 2/3 actifs peut regrouper deux combinaisons de rarete")
+    print("  differente, c'est exactement ce que le score sert a departager).")
+    for n, g in result.groupby("priority_flag_count"):
+        print(f"  {int(n)}/3 actif(s) : {len(g):3d} marches, score d'anomalie "
+              f"moyen {g['anomaly_score_0_100'].mean():5.1f}")
 
     MODEL_PATH.parent.mkdir(parents=True, exist_ok=True)
     joblib.dump(model, MODEL_PATH)
     FEATURE_COLUMNS_PATH.write_text(json.dumps(features, indent=2), encoding="utf-8")
     CONTAMINATION_REPORT_PATH.write_text(json.dumps(
         {"candidates": study, "chosen": chosen, "n_scored": len(result),
-         "medians_used_for_imputation": medians,
+         "imputed_values": imputed_values,
          "dropped_for_redundancy": dropped}, indent=2), encoding="utf-8")
-    # Controle explicite que le seuil a bien retire l'effet mesure.
-    corr = result["anomaly_score_0_100"].corr(result["data_completeness"])
-    print()
-    print("=== controle : le modele score-t-il encore le manque de donnees ? ===")
-    print(f"  correlation score vs completude : {corr:+.3f} (etait -0,249 sans le seuil)")
-    for k, g in result.groupby("data_completeness"):
-        print(f"    {k} info(s) : {len(g):3d} marches, {int(g['is_anomaly'].sum()):2d} "
-              f"signales ({100 * g['is_anomaly'].mean():.1f} %)")
 
     final = pd.concat([result, unscorable], ignore_index=True)
     final.to_parquet(SCORES_PATH, index=False)

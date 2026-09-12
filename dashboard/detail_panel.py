@@ -375,8 +375,10 @@ def _render_body(row: pd.Series) -> None:
     st.markdown('<h6 style="margin:var(--space-8) 0 0;color:var(--color-neutral-600)">'
                 'Scores</h6>', unsafe_allow_html=True)
     tiles = [
-        ("Score d'anomalie",
-         ds.fmt_score(row.get("anomaly_score_0_100"), 1, "—") if scorable else "—"),
+        ("Red flags actifs",
+         ds.render_flag_ladder(row.get("priority_flag_count"),
+                               row.get("priority_flags_evaluable"))
+         if scorable else "—"),
         ("Priorité d'analyse", ds.render_priority_badge(row.get("priority_level"))),
         ("Confiance", ds.confidence_display(row.get("confidence_level"))),
         ("Stabilité", ds.render_stability_dots(row.get("stability_frequency"))),

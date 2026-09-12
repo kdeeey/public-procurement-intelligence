@@ -27,8 +27,8 @@ sys.path.insert(0, str(REPO))
 import pandas as pd  # noqa: E402
 
 from ai.market_red_flags import (  # noqa: E402
-    FLAGS_BY_ID, PRIMARY_FLAGS, REGISTRY, SEVERITY_WEIGHTS, Severity,
-    describe, evaluate_market, summarize,
+    FLAGS_BY_ID, PRIMARY_FLAGS, PRIORITY_FLAG_IDS, REGISTRY, SEVERITY_WEIGHTS,
+    Severity, describe, evaluate_market, summarize, summarize_priority,
 )
 
 SEUILS = {
@@ -204,6 +204,48 @@ def test_score_rescale_sur_les_regles_evaluables_et_pondere():
 def test_score_none_si_aucune_regle_evaluable():
     flags = {fid: None for fid in PRIMARY_FLAGS}
     assert summarize(flags)["red_flag_score"] is None
+
+
+# --------------------------------------------------------------------------- #
+# priority_flag_count — le sous-ensemble RF01+RF02+RF03 qui pilote la
+# priorite (ai/priority_score.py) et l'entrainement du modele
+# (ai/train_market_model.py), distinct de red_flag_count/red_flag_score.
+# --------------------------------------------------------------------------- #
+
+def test_priority_flag_ids_est_bien_rf01_rf02_rf03():
+    assert PRIORITY_FLAG_IDS == ("RF01", "RF02", "RF03")
+    assert "RF05" not in PRIORITY_FLAG_IDS, (
+        "RF05 est renseigne a 100 % du corpus : il ne s'accorde pas avec "
+        "un compte 'sur 3' fait pour distinguer l'evaluable du non-evaluable")
+
+
+def test_priority_flag_count_ignore_rf05_et_rf06():
+    flags = evaluate_market(marche(nb_soumissionnaires=1, exclusion_rate=0.9,
+                                   mode_passation="Concours Architectural"), SEUILS)
+    # RF01 et RF02 actifs, RF03 inactif, RF05 actif (procedure rare), RF06 derive actif.
+    assert flags["RF01"] is True and flags["RF02"] is True and flags["RF05"] is True
+    s = summarize_priority(flags)
+    assert s["priority_flag_count"] == 2, (
+        "RF05 (procedure rare) ne doit jamais compter dans priority_flag_count")
+    assert s["priority_flags_evaluable"] == 3
+
+
+def test_priority_flags_evaluable_compte_seulement_rf01_rf02_rf03():
+    flags = evaluate_market(marche(has_competitor_data=0, nb_soumissionnaires=None,
+                                   montant_ttc=None), SEUILS)
+    assert flags["RF01"] is None and flags["RF03"] is None
+    s = summarize_priority(flags)
+    assert s["priority_flags_evaluable"] == 1  # seul RF02 reste evaluable
+    assert s["priority_flag_count"] == 0
+
+
+def test_priority_flag_count_maximal_a_trois_flags_actifs():
+    flags = evaluate_market(
+        marche(nb_soumissionnaires=1, exclusion_rate=0.9, montant_ttc=50_000_000.0),
+        SEUILS)
+    assert all(flags[f] is True for f in PRIORITY_FLAG_IDS)
+    s = summarize_priority(flags)
+    assert s == {"priority_flag_count": 3, "priority_flags_evaluable": 3}
 
 
 # --------------------------------------------------------------------------- #

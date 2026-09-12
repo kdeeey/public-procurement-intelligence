@@ -25,13 +25,11 @@ marches, infructueux compris) et y joint la qualite des donnees.
 
 AUCUN CHIFFRE N'EST ECRIT EN DUR
 ---------------------------------
-Les bornes de l'echelle de risque elles-memes sont RELUES depuis la
-distribution reelle (`measured_risk_bands()`), avec exactement la regle
-d'`ai/train_market_model.py` : la frontiere "Faible" est celle que le
-modele choisit lui-meme (`is_anomaly`), le sous-groupe signale est coupe
-en terciles mesures. Les recopier en constantes les aurait laissees se
-perimer au premier reentrainement — c'est le motif que
-`database/crud/counts.py` a ete cree pour supprimer.
+Depuis la refonte "red flags only", `priority_level` est une fonction pure
+du compte de red flags prioritaires (`priority_flag_count`, RF01+RF02+RF03
+— voir `ai/priority_score.py`), plus de bandes de score d'anomalie a relire
+ici : `flag_count_distribution()` lit directement ce compte, deja ecrit par
+le pipeline, jamais recalcule.
 """
 
 from __future__ import annotations
@@ -227,37 +225,19 @@ def counts_by_priority() -> pd.DataFrame:
 
 
 @st.cache_data(ttl=60)
-def measured_risk_bands() -> dict | None:
-    """Les bornes RÉELLES de l'échelle de risque, relues sur la
-    distribution — mêmes règles qu'`ai/train_market_model.py` :
-
-      Faible   : jusqu'à la frontière que le modèle choisit lui-même
-                 (le score maximal parmi les marchés NON signalés)
-      Modéré / Élevé / Critique : terciles mesurés du sous-groupe signalé
-
-    Renvoie None si le corpus scoré est vide ou ne contient aucun marché
-    signalé : dans ce cas la jauge affiche une échelle nue plutôt que des
-    bandes inventées.
+def flag_count_distribution() -> pd.DataFrame:
+    """Répartition des marchés scorables par nombre de red flags
+    prioritaires actifs (0 à 3, RF01+RF02+RF03) — remplace
+    `measured_risk_bands()` depuis la refonte "red flags only" : c'est ce
+    compte, pas un score d'anomalie continu, qui décide `priority_level`
+    (voir `ai/priority_score.py`). Sert le graphique de la page Anomalies.
     """
     markets = load_markets()
-    if markets.empty or "anomaly_score_0_100" not in markets.columns:
-        return None
+    if markets.empty or "priority_flag_count" not in markets.columns:
+        return pd.DataFrame(columns=["compte", "n"])
     scored = markets[markets["scorable"] == True]  # noqa: E712
-    scored = scored[scored["anomaly_score_0_100"].notna()]
-    if scored.empty:
-        return None
-    normaux = scored.loc[~scored["is_anomaly"].astype(bool), "anomaly_score_0_100"]
-    anormaux = scored.loc[scored["is_anomaly"].astype(bool), "anomaly_score_0_100"]
-    if normaux.empty or anormaux.empty:
-        return None
-    return {
-        "faible_max": float(normaux.max()),
-        "modere_max": float(anormaux.quantile(1 / 3)),
-        "eleve_max": float(anormaux.quantile(2 / 3)),
-        "min": float(scored["anomaly_score_0_100"].min()),
-        "max": float(scored["anomaly_score_0_100"].max()),
-        "n_scored": int(len(scored)),
-    }
+    return (scored["priority_flag_count"].dropna().astype(int).value_counts()
+            .rename_axis("compte").reset_index(name="n").sort_values("compte"))
 
 
 @st.cache_data(ttl=60)
@@ -266,23 +246,23 @@ def capped_awards() -> set:
     confiance faible.
 
     Recalculé avec les fonctions réelles d'`ai/priority_score.py`
-    (`measure_levels`, `assign_level`, `CAPPED_LEVEL`), jamais avec une
-    règle réécrite ici : on compare le niveau obtenu avec la confiance
-    réelle au niveau qu'aurait donné une confiance élevée. La différence
-    est exactement l'effet du garde-fou.
+    (`assign_level`, `CAPPED_LEVEL`), jamais avec une règle réécrite ici :
+    on compare le niveau obtenu avec la confiance réelle au niveau qu'aurait
+    donné une confiance élevée. La différence est exactement l'effet du
+    garde-fou. Depuis la refonte, le niveau lui-même vient du compte de red
+    flags prioritaires (`priority_flag_count`), pas d'un seuil mesuré — voir
+    `ai/priority_score.py`.
     """
     if not PRIORITY_PATH.exists():
         return set()
     try:
-        from ai.priority_score import CAPPED_LEVEL, assign_level, measure_levels
+        from ai.priority_score import CAPPED_LEVEL, assign_level
     except Exception:  # noqa: BLE001
         return set()
     prio = pd.read_parquet(PRIORITY_PATH)
     if "priority_raw" not in prio.columns:
         return set()
-    seuils = measure_levels(prio["priority_raw"])
-    sans_plafond = prio.apply(
-        lambda r: assign_level(r["priority_raw"], "Elevee", seuils), axis=1)
+    sans_plafond = prio["priority_raw"].apply(lambda r: assign_level(r, "Elevee"))
     capped = ((sans_plafond.isin(["Tres prioritaire", "Prioritaire"]))
               & (prio["priority_level"] == CAPPED_LEVEL))
     return set(prio.loc[capped, "award_id"].astype(int))
@@ -361,7 +341,8 @@ def table_frame() -> pd.DataFrame:
         return corpus
     keep = [c for c in ["award_id", "anomaly_score_0_100", "is_anomaly", "risk_level",
                         "scorable", "stability_frequency", "priority_score",
-                        "priority_level", "confidence_level", "red_flag_count",
+                        "priority_level", "priority_flag_count", "priority_flags_evaluable",
+                        "confidence_level", "red_flag_count",
                         "red_flags_evaluable", "red_flag_score", "red_flags_triggered",
                         "RF01", "RF02", "RF03", "RF05", "RF06", "data_completeness"]
             if c in markets.columns]

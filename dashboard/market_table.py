@@ -37,6 +37,7 @@ import streamlit as st  # noqa: E402
 
 from dashboard import data_access as da  # noqa: E402
 from dashboard import design_system as ds  # noqa: E402
+from dashboard.detail_panel import market_title, winner_text  # noqa: E402
 
 OBJET_MAX = 78          # troncature mesuree : mediane 124 car., p90 281
 ACHETEUR_MAX = 46       # mediane 60 car.
@@ -160,6 +161,66 @@ def _stability_cell(value) -> str:
     return f"{int(value)}/10"
 
 
+def _etrp_marche_cell(row: pd.Series) -> str:
+    """"Entreprise / Marché" — combine les deux identifiants deja affiches
+    separement (colonne Entreprise et colonne Reference) sans recalculer
+    quoi que ce soit : reutilise `detail_panel.winner_text`/`market_title`."""
+    return f"{winner_text(row)} / {market_title(row)}"
+
+
+def _info_dispo_cell(row: pd.Series) -> str:
+    """Regroupe les informations deja affichees ailleurs dans le tableau
+    (procedure, categorie, date d'ouverture, lot) en une seule cellule de
+    synthese. Aucune nouvelle donnee : uniquement des colonnes deja lues
+    par `data_access.table_frame()`."""
+    parts = []
+    procedure = row.get("mode_passation")
+    if not ds.is_missing(procedure):
+        parts.append(str(procedure))
+    categorie = row.get("categorie_principale")
+    if not ds.is_missing(categorie):
+        parts.append(str(categorie))
+    date = row.get("date_ouverture_plis")
+    if not ds.is_missing(date):
+        parts.append(f"Ouverture {date}")
+    lot = row.get("lot_numero")
+    if not ds.is_missing(lot):
+        parts.append(f"Lot {int(lot)}")
+    if not parts:
+        return ds.MISSING_GENERIC
+    return _truncate(" · ".join(parts), 90)
+
+
+def _concurrents_cell(value) -> str:
+    if ds.is_missing(value):
+        return ds.MISSING_GENERIC
+    return str(int(value))
+
+
+def _anomaly_cell(row: pd.Series) -> str:
+    """Oui/Non lu tel quel dans `is_anomaly` (logique de
+    `ai/train_market_model.py`, non recalculee). Un marche non scorable a
+    `is_anomaly=False` par construction du pipeline — ce n'est pas une
+    absence d'anomalie mais une absence d'evaluation, donc N/A plutot que
+    Non."""
+    if not bool(row.get("scorable", False)):
+        return "N/A"
+    value = row.get("is_anomaly")
+    if ds.is_missing(value):
+        return "N/A"
+    return "Oui" if bool(value) else "Non"
+
+
+def _score_sur3_cell(row: pd.Series) -> str:
+    """`priority_flag_count`/3, calcule dans `ai/market_red_flags.py`. N/A
+    quand moins de 2 des 3 red flags prioritaires sont evaluables — le meme
+    seuil que la gate de scorabilite existante, pas un nouveau seuil."""
+    count, evaluable = row.get("priority_flag_count"), row.get("priority_flags_evaluable")
+    if ds.is_missing(count) or ds.is_missing(evaluable) or evaluable < 2:
+        return "N/A"
+    return f"{int(count)}/3"
+
+
 def build_display(df: pd.DataFrame, variant: str) -> pd.DataFrame:
     """DataFrame d'affichage. Une valeur absente devient un libelle
     explicite, jamais 0 ni une chaine vide."""
@@ -181,10 +242,18 @@ def build_display(df: pd.DataFrame, variant: str) -> pd.DataFrame:
         base.insert(0, "", [icon] * len(base))
 
     if variant == "catalogue":
+        base.insert(1 if icon else 0, "Entreprise / Marché",
+                    df.apply(_etrp_marche_cell, axis=1).values)
+        base["Toute info dispo"] = df.apply(_info_dispo_cell, axis=1).values
         base["Procédure"] = df["mode_passation"].apply(
             lambda v: _truncate(v, 30)).values
+        base["Entreprise"] = df.apply(winner_text, axis=1).values
         base["Montant TTC"] = df["montant_ttc"].apply(ds.fmt_montant).values
-        base["Priorité"] = df["priority_level"].apply(
+        base["Concurrents"] = df["nb_soumissionnaires"].apply(_concurrents_cell).values
+        base["Anomaly (Oui/Non)"] = df.apply(_anomaly_cell, axis=1).values
+        base["Red flags"] = df.apply(_flag_cell, axis=1).values
+        base["Score (/3)"] = df.apply(_score_sur3_cell, axis=1).values
+        base["Commentaires"] = df["priority_level"].apply(
             lambda v: ds.priority_display(v) if not ds.is_missing(v)
             else "Non applicable").values
         base["Qualité"] = df.apply(
@@ -192,15 +261,17 @@ def build_display(df: pd.DataFrame, variant: str) -> pd.DataFrame:
                        f"{ds.quality_display(r.get('data_quality_level'))}")
             if not ds.is_missing(r.get("data_quality_level")) else ds.MISSING_GENERIC,
             axis=1).values
-        base["Red flags"] = df.apply(_flag_cell, axis=1).values
+        base["Data Quality"] = df["data_quality_level"].apply(
+            lambda v: ds.quality_display(v) if not ds.is_missing(v)
+            else ds.MISSING_GENERIC).values
     else:  # variant == "anomalies"
         base["Priorité"] = df["priority_level"].apply(
             lambda v: ds.priority_display(v) if not ds.is_missing(v)
             else "Non applicable").values
-        base["Score"] = df["anomaly_score_0_100"].apply(
+        base["Red flags"] = df.apply(_flag_cell, axis=1).values
+        base["Score (diagnostic)"] = df["anomaly_score_0_100"].apply(
             lambda v: ds.fmt_score(v, 1, "—")).values
         base["Stabilité"] = df["stability_frequency"].apply(_stability_cell).values
-        base["Red flags"] = df.apply(_flag_cell, axis=1).values
         base["Qualité"] = df.apply(
             lambda r: (f"{ds.fmt_score(r.get('data_quality_score'), 0, '—')} · "
                        f"{ds.quality_display(r.get('data_quality_level'))}")
@@ -243,15 +314,19 @@ def _style(display: pd.DataFrame, source: pd.DataFrame):
     def _missing_css(col: pd.Series) -> list[str]:
         return [f"color:{ds.TOKENS['n500']};font-style:italic"
                 if v in (ds.MISSING_TEXT, ds.MISSING_GENERIC, ds.MISSING_ID,
-                         "Sans référence", "Non applicable", "—") else ""
+                         "Sans référence", "Non applicable", "N/A", "—") else ""
                 for v in col]
 
     styler = display.style
-    if "Priorité" in display.columns:
-        styler = styler.apply(_prio_css, subset=["Priorité"])
-    if "Qualité" in display.columns:
-        styler = styler.apply(_qual_css, subset=["Qualité"])
-    for col in ["Référence", "Montant TTC", "Score", "Stabilité", "Red flags"]:
+    for col in ["Priorité", "Commentaires"]:
+        if col in display.columns:
+            styler = styler.apply(_prio_css, subset=[col])
+    for col in ["Qualité", "Data Quality"]:
+        if col in display.columns:
+            styler = styler.apply(_qual_css, subset=[col])
+    for col in ["Référence", "Montant TTC", "Score (diagnostic)", "Stabilité", "Red flags",
+                "Entreprise / Marché", "Toute info dispo", "Entreprise", "Concurrents",
+                "Anomaly (Oui/Non)", "Score (/3)"]:
         if col in display.columns:
             styler = styler.apply(_missing_css, subset=[col])
     return styler
@@ -284,12 +359,49 @@ COLUMN_CONFIG = {
         help="Règles actives / règles évaluables, puis les codes actifs. Un "
              "dénominateur inférieur au nombre total de règles signale des "
              "règles non évaluables faute d'information lisible."),
-    "Score": st.column_config.TextColumn(
-        "Score", width="small", help="Score d'anomalie 0-100 du modèle."),
+    "Score (diagnostic)": st.column_config.TextColumn(
+        "Score (diagnostic)", width="small",
+        help="Score du modèle (entraîné sur RF01/RF02/RF03), 0-100. Ne décide "
+             "jamais la priorité — il ne fait que départager des marchés à "
+             "égalité de red flags actifs. Voir la colonne « Red flags »."),
     "Stabilité": st.column_config.TextColumn(
         "Stabilité", width="small",
         help="Nombre de réentraînements (sur 10) où ce marché ressort dans le "
              "Top 20. 0 signifie « jamais entré dans un Top 20 », pas « instable »."),
+    "Entreprise / Marché": st.column_config.TextColumn(
+        "Entreprise / Marché", width="medium",
+        help="Attributaire (ou « Non identifié ») et référence du marché, "
+             "affichés ensemble pour repérer la ligne d'un coup d'œil."),
+    "Toute info dispo": st.column_config.TextColumn(
+        "Toute info dispo", width="large",
+        help="Synthèse des informations déjà disponibles sur le marché "
+             "(procédure, catégorie, date d'ouverture des plis, lot). "
+             "Le détail complet reste dans la fiche du marché."),
+    "Entreprise": st.column_config.TextColumn(
+        "Entreprise", width="medium",
+        help="Attributaire lu dans le document. « Non identifié » quand le "
+             "document ne permet pas de l'extraire de façon fiable."),
+    "Concurrents": st.column_config.TextColumn(
+        "Concurrents", width="small",
+        help="Nombre de soumissionnaires. Le projet ne dispose pas des noms "
+             "des concurrents, seulement de leur nombre."),
+    "Anomaly (Oui/Non)": st.column_config.TextColumn(
+        "Anomaly (Oui/Non)", width="small",
+        help="Résultat du modèle d'anomalie (entraîné sur RF01/RF02/RF03). "
+             "N/A quand le marché n'est pas scorable, jamais assimilé à « Non »."),
+    "Score (/3)": st.column_config.TextColumn(
+        "Score (/3)", width="small",
+        help="Nombre de red flags prioritaires actifs (RF01/RF02/RF03) sur 3. "
+             "N/A quand moins de 2 des 3 sont évaluables."),
+    "Commentaires": st.column_config.TextColumn(
+        "Commentaires", width="small",
+        help="Interprétation du résultat, reprise du niveau de priorité déjà "
+             "calculé (colonne « Priorité »). « Données insuffisantes » est un "
+             "état distinct, pas un niveau faible."),
+    "Data Quality": st.column_config.TextColumn(
+        "Data Quality", width="small",
+        help="Niveau de qualité des données déjà calculé (colonne « Qualité »), "
+             "sans le score numérique."),
 }
 
 

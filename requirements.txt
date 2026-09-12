@@ -48,6 +48,10 @@ python-multipart
 streamlit
 plotly
 
+# Graphiques statiques pour le rapport (scripts/generate_report_figures.py)
+matplotlib
+seaborn
+
 # Testing
 pytest
 pytest-cov

@@ -2,18 +2,23 @@
 Page « XAI · Explicabilite » — pourquoi ce marche, et avec quelles reserves.
 
 C'est la page qui justifie le produit : elle repond a "pourquoi celui-la"
-plutot qu'a "lequel". Elle enchaine, dans l'ordre de la maquette :
-selecteur, plafond de confiance eventuel, fiche du marche, jauge, SHAP,
-controle par ablation, red flags, comparaison aux pairs, qualite des
-donnees, explication en langage simple, avis de l'analyste.
+plutot qu'a "lequel". Depuis la refonte "red flags only", l'ordre suit la
+decision reelle plutot que l'ancienne maquette : selecteur, plafond de
+confiance eventuel, fiche du marche + signal red flags (ce qui decide le
+niveau), red flags metier en detail, PUIS le diagnostic technique du
+modele (SHAP, ablation — qui n'influence plus le niveau), comparaison aux
+pairs, qualite des donnees, explication en langage simple, avis de
+l'analyste.
 
 CE QUE SHAP EXPLIQUE, ET CE QU'IL N'EXPLIQUE PAS
 --------------------------------------------------
-Sur un Isolation Forest, SHAP attribue une part d'une PROFONDEUR
-D'ISOLEMENT, pas une probabilite — et il explique le modele, pas le monde.
-Une feature mal extraite produit une explication parfaitement coherente
-d'un score parfaitement faux. Les deux avertissements sont affiches sous
-le graphique, pas relegues dans la documentation.
+Sur un Isolation Forest entraine SUR RF01/RF02/RF03, SHAP attribue une part
+d'une PROFONDEUR D'ISOLEMENT parmi ces 3 flags, pas une probabilite — et il
+explique le modele, pas le monde, et encore moins la priorite (qui se lit
+directement sur le compte de flags actifs, voir `_summary()`). Une feature
+mal extraite produit une explication parfaitement coherente d'un score
+parfaitement faux. Les deux avertissements sont affiches sous le
+graphique, pas relegues dans la documentation.
 
 LES DELTAS D'ABLATION NE SONT PAS AFFICHES, ET C'EST VOULU
 ------------------------------------------------------------
@@ -42,13 +47,13 @@ from dashboard import design_system as ds  # noqa: E402
 from dashboard import detail_panel as dp  # noqa: E402
 
 # Correspondance colonne imputable -> drapeau d'imputation, telle que
-# `ai/train_market_model.py::IMPUTED_COLUMNS` la definit. Sert a marquer
-# une contribution SHAP assise sur une mediane substituee.
+# `ai/train_market_model.py::IMPUTED_COLUMNS` la definit (RF01/RF02/RF03,
+# imputes a 0 quand non evaluables). Sert a marquer une contribution SHAP
+# assise sur un flag invente plutot que lu dans le document.
 IMPUTED_FLAG = {
-    "log_montant_ttc": "log_montant_ttc_imputed",
-    "nb_soumissionnaires": "nb_soumissionnaires_imputed",
-    "nb_concurrents_ecartes": "nb_concurrents_ecartes_imputed",
-    "exclusion_rate": "exclusion_rate_imputed",
+    "RF01": "RF01_imputed",
+    "RF02": "RF02_imputed",
+    "RF03": "RF03_imputed",
 }
 
 
@@ -174,12 +179,12 @@ def _summary(row: pd.Series) -> None:
             unsafe_allow_html=True)
 
         tiles = [
-            ("Score d'anomalie", ds.fmt_score(row.get("anomaly_score_0_100"), 1, "—"),
-             "sur 100"),
-            ("Score red flags", ds.fmt_score(row.get("red_flag_score"), 0, "—"),
-             "règles métier"),
+            ("Red flags actifs",
+             ds.render_flag_ladder(row.get("priority_flag_count"),
+                                   row.get("priority_flags_evaluable")),
+             "RF01+RF02+RF03"),
             ("Score de priorité", ds.fmt_score(row.get("priority_score"), 0, "—"),
-             "ordre de lecture"),
+             "ordre de tri (compte × 1000 + modèle)"),
             ("Confiance", ds.confidence_display(row.get("confidence_level")),
              "niveau"),
         ]
@@ -192,7 +197,7 @@ def _summary(row: pd.Series) -> None:
             f'<div class="card-meta" style="font-size:10.5px">{sub}</div></div>'
             for label, value, sub in tiles)
         st.markdown(
-            f'<div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));'
+            f'<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));'
             f'gap:var(--space-3);margin-top:var(--space-6)">{cells}</div>',
             unsafe_allow_html=True)
         st.markdown(
@@ -201,71 +206,62 @@ def _summary(row: pd.Series) -> None:
             f'<span style="font-size:11.5px;color:{ds.TOKENS["n600"]}">Stabilité</span>'
             f'{ds.render_stability_dots(row.get("stability_frequency"))}</div>',
             unsafe_allow_html=True)
-
-    bands_tip = ("Bornes mesurées sur la distribution réelle, jamais 25/50/75 "
-                ": la frontière « Faible » est celle que le modèle choisit "
-                "lui-même (le score maximal parmi les marchés non signalés) ; "
-                "Modéré et Élevé sont les terciles mesurés du sous-groupe "
-                "signalé.")
-    with right, ds.card("Score d'anomalie sur l'échelle du corpus", help=bands_tip):
-        bands = da.measured_risk_bands()
-        score = row.get("anomaly_score_0_100")
-        if ds.is_missing(score):
-            ds.render_empty_state("Ce marché n'est pas scoré par le modèle.")
-        else:
-            st.plotly_chart(charts.gauge_anomaly(float(score), bands),
-                            use_container_width=True, config=charts.PLOTLY_CONFIG,
-                            key="chart_gauge")
-            level = row.get("risk_level")
+        anomaly = row.get("anomaly_score_0_100")
+        if not ds.is_missing(anomaly):
             st.markdown(
-                f'<div style="display:flex;align-items:center;gap:var(--space-3);'
-                f'flex-wrap:wrap"><span style="font-size:11.5px;'
-                f'color:{ds.TOKENS["n600"]}">Zone atteinte</span>'
-                f'{ds.render_status_badge(ds.risk_display(level), ds.RISK_LEVEL_ROLE.get(level, "none"), big=True)}'
+                f'<div class="card-meta" style="font-size:10.5px;'
+                f'margin-top:var(--space-3)">Diagnostic technique du modèle '
+                f'(entraîné sur ces mêmes 3 red flags) : {ds.fmt_score(anomaly, 1)}/100. '
+                f'Ne sert qu\'à départager des marchés à égalité de red flags actifs, '
+                f'jamais à changer leur niveau.</div>', unsafe_allow_html=True)
+
+    with right, ds.card("Signal red flags",
+                        help="Le niveau de priorité est une fonction pure du "
+                             "nombre de red flags prioritaires actifs. Il ne peut "
+                             "jamais être changé par le score du modèle."):
+        count = row.get("priority_flag_count")
+        if ds.is_missing(count):
+            ds.render_empty_state("Ce marché n'est pas scoré : moins de 2 des 3 "
+                                  "red flags prioritaires sont évaluables.")
+        else:
+            st.markdown(
+                f'<div style="display:flex;flex-direction:column;align-items:center;'
+                f'gap:var(--space-4);padding:var(--space-6) 0">'
+                f'{ds.render_flag_ladder(count, row.get("priority_flags_evaluable"), big=True)}'
+                f'{ds.render_priority_badge(row.get("priority_level"), big=True)}'
                 f'</div>', unsafe_allow_html=True)
-            if bands:
-                # Chaque borne est formatee individuellement : un
-                # `.replace(".", ",")` applique a la phrase entiere
-                # transformait aussi sa ponctuation en virgules.
-                faible = ds.fmt_score(bands["faible_max"])
-                modere = ds.fmt_score(bands["modere_max"])
-                eleve = ds.fmt_score(bands["eleve_max"])
-                # Legende structuree plutot qu'une phrase continue : chaque
-                # zone porte son carre de couleur, la meme que sur l'arc de
-                # la jauge — le nombre de marches et la nuance methodologique
-                # ("frontiere que le modele choisit") vont dans le tooltip du
-                # titre de la carte, pas dans ce texte visible.
-                legend = "".join(
-                    f'<span style="display:inline-flex;align-items:center;'
-                    f'gap:6px;font-size:11px;color:{ds.TOKENS["n700"]}">'
-                    f'<span style="width:8px;height:8px;border-radius:2px;'
-                    f'background:{ds.RISK[role]["base"]};flex:0 0 8px"></span>'
-                    f'{name} {bound}</span>'
-                    for name, bound, role in (
-                        ("Faible", f"≤ {faible}", "low"),
-                        ("Modéré", f"≤ {modere}", "mid"),
-                        ("Élevé", f"≤ {eleve}", "high"),
-                        ("Critique", f"> {eleve}", "crit")))
-                st.markdown(
-                    f'<div style="display:flex;flex-wrap:wrap;'
-                    f'gap:var(--space-4);margin-top:var(--space-4)">{legend}</div>',
-                    unsafe_allow_html=True)
-                st.markdown(
-                    f'<div class="card-meta" style="font-size:10.5px;'
-                    f'margin-top:var(--space-2)">Bornes mesurées sur '
-                    f'{bands["n_scored"]} marchés scorés.</div>',
-                    unsafe_allow_html=True)
+            legend = "".join(
+                f'<span style="display:inline-flex;align-items:center;'
+                f'gap:6px;font-size:11px;color:{ds.TOKENS["n700"]}">'
+                f'<span style="width:8px;height:8px;border-radius:2px;'
+                f'background:{ds.RISK[role]["base"]};flex:0 0 8px"></span>'
+                f'{n}/3 {name}</span>'
+                for n, name, role in (
+                    (0, "Faible", "low"), (1, "À surveiller", "mid"),
+                    (2, "Prioritaire", "high"), (3, "Très prioritaire", "crit")))
+            st.markdown(
+                f'<div style="display:flex;flex-wrap:wrap;justify-content:center;'
+                f'gap:var(--space-4);margin-top:var(--space-2)">{legend}</div>',
+                unsafe_allow_html=True)
             st.markdown(
                 f'<div style="margin-top:var(--space-4);padding-top:var(--space-3);'
                 f'border-top:1px solid {ds.TOKENS["divider"]}">'
-                f'<div class="pmmp-caption">Le score exprime un écart '
-                f'statistique au corpus. Il ne s\'agit pas d\'une probabilité '
-                f'd\'irrégularité, et les bornes 0 et 100 sont relatives à ce '
-                f'corpus.</div></div>', unsafe_allow_html=True)
+                f'<div class="pmmp-caption">Le niveau ne mesure jamais un score '
+                f'continu : c\'est un compte de 0 à 3, la même règle pour tous les '
+                f'marchés du corpus.</div></div>', unsafe_allow_html=True)
 
 
 def _explainability(row: pd.Series) -> None:
+    """Diagnostic TECHNIQUE du modèle — pourquoi il regroupe ce marché avec
+    telle combinaison de red flags jugée rare. Volontairement affiché après
+    « Signal red flags » et « Red flags métier » : la priorité se lit déjà
+    sur le compte de flags actifs, ce bloc n'y ajoute rien, il explique
+    seulement le fonctionnement interne du modèle."""
     labels = _feature_labels()
+    st.markdown(
+        f'<div class="card-meta" style="font-size:11px;margin-bottom:var(--space-3)">'
+        f'Diagnostic technique — explique le modèle, pas la priorité déjà '
+        f'établie ci-dessus.</div>', unsafe_allow_html=True)
     left, right = st.columns(2)
 
     with left, ds.card("Facteurs principaux selon SHAP"):
@@ -285,10 +281,10 @@ def _explainability(row: pd.Series) -> None:
                             config=charts.PLOTLY_CONFIG, key="chart_shap")
             if any(imputed):
                 ds.render_warning(
-                    "Au moins un facteur repose sur une valeur imputée, "
-                    "c'est-à-dire remplacée par la médiane du corpus faute d'avoir "
-                    "été lue dans le document (marquée ⚠ sur le graphique). Ce "
-                    "n'est pas une observation.")
+                    "Au moins un facteur repose sur un red flag non évaluable, "
+                    "imputé à « inactif » faute d'avoir pu être lu dans le "
+                    "document (marqué ⚠ sur le graphique). Ce n'est pas une "
+                    "observation.")
             shap_tip = (
                 "Il indique en quoi ce marché se distingue des autres du corpus, "
                 "jamais qu'il serait irrégulier. Sur un Isolation Forest, la "
@@ -298,6 +294,12 @@ def _explainability(row: pd.Series) -> None:
                 f'<div class="pmmp-caption">SHAP explique la sortie du '
                 f'<strong>modèle</strong>, pas la réalité du marché. '
                 f'{ds.info_icon(shap_tip)}</div>', unsafe_allow_html=True)
+            st.markdown(
+                '<div class="pmmp-caption" style="margin-top:var(--space-1)">'
+                'Ce score ne classe jamais un marché dans un niveau de priorité '
+                'supérieur — il départage seulement les marchés à égalité de red '
+                'flags actifs (voir « Signal red flags » ci-dessus).</div>',
+                unsafe_allow_html=True)
 
     with right, ds.card("Contrôle par ablation"):
         ds.render_caption(
@@ -544,9 +546,9 @@ def render() -> None:
     st.markdown('<div style="height:var(--space-6)"></div>', unsafe_allow_html=True)
     _summary(row)
     st.markdown('<div style="height:var(--space-6)"></div>', unsafe_allow_html=True)
-    _explainability(row)
-    st.markdown('<div style="height:var(--space-6)"></div>', unsafe_allow_html=True)
     _red_flags(row)
+    st.markdown('<div style="height:var(--space-6)"></div>', unsafe_allow_html=True)
+    _explainability(row)
     st.markdown('<div style="height:var(--space-6)"></div>', unsafe_allow_html=True)
     _peer_and_quality(row)
     st.markdown('<div style="height:var(--space-6)"></div>', unsafe_allow_html=True)

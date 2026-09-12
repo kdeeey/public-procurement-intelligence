@@ -11,11 +11,12 @@ page controle un fichier — format, colonnes reconnues et manquantes,
 apercu, valeurs incoherentes — et n'ecrit rien : ni dans le corpus, ni en
 base, ni dans un parquet. Aucun OCR, aucune extraction.
 
-Elle calcule en revanche, EN MEMOIRE et pour affichage seul, les memes
-features derivees et le meme score que le pipeline reel (voir
-`_score_uploaded` ci-dessous) — reutilise du modele Isolation Forest deja
-entraine (`ai/train_market_model.py`) et du registre de red flags
-(`ai/market_red_flags.py`), jamais reimplemente en double.
+Elle calcule en revanche, EN MEMOIRE et pour affichage seul, les memes red
+flags et le meme score que le pipeline reel (voir `_score_uploaded`
+ci-dessous) — reutilise le registre de red flags (`ai/market_red_flags.py`),
+le modele Isolation Forest deja entraine SUR ces flags
+(`ai/train_market_model.py`) et la formule de priorite
+(`ai/priority_score.py`), jamais reimplemente en double.
 
 LE SCHEMA ATTENDU EST LU, PAS ECRIT
 -------------------------------------
@@ -25,13 +26,23 @@ sur 100 % du corpus est presentee comme attendue, les autres comme
 facultatives avec leur taux de remplissage reel. Aucune liste de colonnes
 n'est ecrite en dur ici.
 
+CE QUI EST RECALCULE, ET CE QUI VIENT DU PIPELINE REEL
+----------------------------------------------------------
+Depuis la refonte "red flags only", le modele s'entraine SUR RF01/RF02/RF03
+(ai/train_market_model.py) : reproduire son entree revient donc a evaluer
+ces 3 red flags sur les lignes deposees, avec les MEMES seuils que le
+pipeline reel (`red_flag_thresholds.json`, jamais recalcules sur le
+fichier). Le niveau de priorite reste une fonction pure du compte de flags
+actifs (`ai/priority_score.py::assign_level`) — le score du modele ne sert
+qu'a departager des lignes a egalite de compte, exactement comme dans la
+chaine reelle.
+
 FIABILITE DU SCORE SUR DES DONNEES HORS CORPUS
 -------------------------------------------------
-Le modele a ete entraine sur les 314 marches ATTRIBUE du corpus reel. Les
-memes seuils d'imputation, les memes bornes de mise a l'echelle (0-100) et
-les memes seuils de red flags sont reutilises tels quels — RIEN n'est
-reentraine sur le fichier depose. Un score obtenu ici mesure un ECART A LA
-POPULATION D'ENTRAINEMENT, pas une verite sur des donnees nouvelles ou
+Le modele a ete entraine sur les marches ATTRIBUE du corpus reel. Les memes
+seuils de red flags et le meme modele sont reutilises tels quels — RIEN
+n'est reentraine sur le fichier depose. Un score obtenu ici mesure un ECART
+A LA POPULATION D'ENTRAINEMENT, pas une verite sur des donnees nouvelles ou
 synthetiques : voir l'avertissement affiche avec chaque resultat.
 """
 
@@ -52,9 +63,7 @@ MODELS_DIR = ds.REPO / "ai" / "models"
 ANALYTICS_DIR = ds.REPO / "data" / "processed" / "analytics"
 MODEL_PATH = MODELS_DIR / "isolation_forest_market.joblib"
 FEATURE_COLUMNS_PATH = MODELS_DIR / "market_feature_columns.json"
-CONTAMINATION_PATH = ANALYTICS_DIR / "contamination_study.json"
 SCORES_PATH = ANALYTICS_DIR / "market_anomaly_scores.parquet"
-PRIORITY_PATH = ANALYTICS_DIR / "market_priority.parquet"
 RED_FLAG_THRESHOLDS_PATH = ANALYTICS_DIR / "red_flag_thresholds.json"
 
 # Au-dela de ce nombre de lignes, les red flags et le score de priorite
@@ -136,155 +145,98 @@ def _render_schema(schema: pd.DataFrame) -> None:
 @st.cache_resource(show_spinner=False)
 def _load_scoring_artifacts():
     """Charge une seule fois les artefacts du pipeline reel : modele
-    entraine, colonnes de features, medianes d'imputation, bornes de score
-    et seuils de red flags. Retourne None si l'un d'eux est absent — la
-    page continue alors a valider sans scorer, plutot que de planter."""
+    entraine (sur RF01/RF02/RF03), colonnes de features, et seuils de red
+    flags. Retourne None si l'un d'eux est absent — la page continue alors
+    a valider sans scorer, plutot que de planter."""
     try:
         model = joblib.load(MODEL_PATH)
         features = json.loads(FEATURE_COLUMNS_PATH.read_text(encoding="utf-8"))
-        medians = json.loads(CONTAMINATION_PATH.read_text(encoding="utf-8")
-                             )["medians_used_for_imputation"]
-        ref_scores = pd.read_parquet(SCORES_PATH)
-        ref_priority = (pd.read_parquet(PRIORITY_PATH)
-                        if PRIORITY_PATH.exists() else None)
         rf_thresholds = json.loads(
             RED_FLAG_THRESHOLDS_PATH.read_text(encoding="utf-8"))
+        ref_scores = pd.read_parquet(SCORES_PATH)
     except Exception:  # noqa: BLE001 — artefact manquant = pas de scoring
         return None
-    scored_ref = ref_scores.dropna(subset=["anomaly_score_0_100"])
     lo, hi = float(ref_scores["anomaly_score"].min()), float(ref_scores["anomaly_score"].max())
-    normal_max = float(scored_ref.loc[~scored_ref["is_anomaly"], "anomaly_score_0_100"].max())
-    anormaux = scored_ref.loc[scored_ref["is_anomaly"], "anomaly_score_0_100"]
-    t1, t2 = (float(x) for x in anormaux.quantile([1 / 3, 2 / 3]))
-    prio_seuils = None
-    if ref_priority is not None and "priority_raw" in ref_priority.columns:
-        from ai.priority_score import measure_levels
-        prio_seuils = measure_levels(ref_priority["priority_raw"])
     return {
-        "model": model, "features": features, "medians": medians,
-        "lo": lo, "hi": hi, "risk_thresholds": (normal_max, t1, t2),
-        "rf_thresholds": rf_thresholds, "prio_seuils": prio_seuils,
+        "model": model, "features": features,
+        "lo": lo, "hi": hi, "rf_thresholds": rf_thresholds,
     }
 
 
-def _derive_model_features(df: pd.DataFrame, medians: dict) -> pd.DataFrame:
-    """Reconstitue les 11 colonnes du modele a partir de ce qui est present
-    dans le fichier depose — colonnes deja derivees si elles y sont (cas
-    d'un export a la market_features.parquet), sinon calculees a partir des
-    champs bruts (montant_ttc, mode_passation, categorie_principale,
-    nb_soumissionnaires, nb_concurrents_ecartes). Approximation assumee :
-    `exclusion_rate` est ici nb_concurrents_ecartes / nb_soumissionnaires,
-    une definition simple choisie pour ce scoring a la volee — pas
-    necessairement identique au calcul exact du pipeline PySpark."""
-    out = pd.DataFrame(index=df.index)
+def _derive_model_features(flags_df: pd.DataFrame, raw_df: pd.DataFrame) -> pd.DataFrame:
+    """RF01/RF02/RF03 (True/False/None) -> matrice numerique pour le modele,
+    exactement comme `ai/train_market_model.py::prepare_market_matrix()` :
+    un flag non evaluable est impute a 0, jamais a une mediane (un booleen
+    n'en a pas), avec son drapeau de disponibilite a cote. Les drapeaux
+    eux-memes sont approximes depuis les colonnes brutes deposees
+    (`nb_soumissionnaires`, `exclusion_rate`/`nb_concurrents_ecartes`,
+    `montant_ttc`) — le pipeline reel les lit dans le document source, ce
+    qu'un fichier tabulaire depose ne porte pas."""
+    from ai.train_market_model import IMPUTED_COLUMNS
 
-    if "log_montant_ttc" in df.columns:
-        out["log_montant_ttc"] = pd.to_numeric(df["log_montant_ttc"], errors="coerce")
-    elif "montant_ttc" in df.columns:
-        montant = pd.to_numeric(df["montant_ttc"], errors="coerce")
-        out["log_montant_ttc"] = np.log(montant.clip(lower=1))
+    out = pd.DataFrame(index=flags_df.index)
+    for flag_col in IMPUTED_COLUMNS:
+        out[flag_col] = pd.to_numeric(flags_df[flag_col], errors="coerce").fillna(0.0)
+
+    out["has_competitor_data"] = (
+        pd.to_numeric(raw_df.get("nb_soumissionnaires"), errors="coerce").notna().astype(int)
+        if "nb_soumissionnaires" in raw_df.columns else 0)
+    if "exclusion_rate" in raw_df.columns:
+        out["has_exclusion_data"] = pd.to_numeric(
+            raw_df["exclusion_rate"], errors="coerce").notna().astype(int)
+    elif "nb_concurrents_ecartes" in raw_df.columns:
+        out["has_exclusion_data"] = pd.to_numeric(
+            raw_df["nb_concurrents_ecartes"], errors="coerce").notna().astype(int)
     else:
-        out["log_montant_ttc"] = np.nan
-
-    for col in ("nb_soumissionnaires", "nb_concurrents_ecartes"):
-        out[col] = pd.to_numeric(df[col], errors="coerce") if col in df.columns else np.nan
-
-    if "exclusion_rate" in df.columns:
-        out["exclusion_rate"] = pd.to_numeric(df["exclusion_rate"], errors="coerce")
-    else:
-        with np.errstate(divide="ignore", invalid="ignore"):
-            out["exclusion_rate"] = (out["nb_concurrents_ecartes"]
-                                     / out["nb_soumissionnaires"]).replace(
-                                         [np.inf, -np.inf], np.nan)
-
-    out["has_amount_data"] = out["log_montant_ttc"].notna().astype(int)
-    out["has_exclusion_data"] = out["exclusion_rate"].notna().astype(int)
-
-    if "mode_ao_ouvert" in df.columns and "mode_autre" in df.columns:
-        out["mode_ao_ouvert"] = pd.to_numeric(df["mode_ao_ouvert"], errors="coerce").fillna(0)
-        out["mode_autre"] = pd.to_numeric(df["mode_autre"], errors="coerce").fillna(0)
-    elif "mode_passation" in df.columns:
-        mode = df["mode_passation"].astype(str)
-        out["mode_ao_ouvert"] = mode.str.contains("ouvert", case=False, na=False).astype(int)
-        out["mode_autre"] = (~mode.str.contains("ouvert|simplifi", case=False, na=False,
-                                                 regex=True)).astype(int)
-    else:
-        out["mode_ao_ouvert"] = 0
-        out["mode_autre"] = 0
-
-    for col, keyword in (("cat_travaux", "trava"), ("cat_fournitures", "fourniture"),
-                         ("cat_services", "service")):
-        if col in df.columns:
-            out[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
-        elif "categorie_principale" in df.columns:
-            out[col] = df["categorie_principale"].astype(str).str.contains(
-                keyword, case=False, na=False).astype(int)
-        else:
-            out[col] = 0
-
-    for col, median in medians.items():
-        out[col] = out[col].fillna(median)
-
+        out["has_exclusion_data"] = 0
+    out["has_amount_data"] = (
+        pd.to_numeric(raw_df.get("montant_ttc"), errors="coerce").notna().astype(int)
+        if "montant_ttc" in raw_df.columns else 0)
     return out
 
 
 def _score_uploaded(df: pd.DataFrame, artifacts: dict) -> pd.DataFrame:
-    """Calcule anomaly score, niveau de risque, red flags et score de
-    priorite sur les lignes deposees. Renvoie un DataFrame de resultats
-    ALIGNE sur l'index de `df` — rien n'est ecrit sur disque."""
-    features = artifacts["features"]
-    feat_df = _derive_model_features(df, artifacts["medians"])
-    X = feat_df[features].to_numpy(dtype=float)
+    """Evalue RF01/RF02/RF03, le score du modele (entraine sur ces memes
+    flags) et le niveau de priorite sur les lignes deposees. Renvoie un
+    DataFrame de resultats ALIGNE sur l'index de `df` — rien n'est ecrit
+    sur disque.
 
-    raw = artifacts["model"].decision_function(X)
-    lo, hi = artifacts["lo"], artifacts["hi"]
-    anomaly_0_100 = np.clip(100 * (hi - raw) / (hi - lo), 0, 100)
-    normal_max, t1, t2 = artifacts["risk_thresholds"]
-
-    def _level(score: float) -> str:
-        if score <= normal_max:
-            return "Faible"
-        if score <= t1:
-            return "Modere"
-        if score <= t2:
-            return "Eleve"
-        return "Critique"
-
-    result = pd.DataFrame({
-        "anomaly_score_0_100": anomaly_0_100,
-        "risk_level": [_level(s) for s in anomaly_0_100],
-    }, index=df.index)
+    La boucle Python (`evaluate_market` par ligne) borne desormais AUSSI le
+    score du modele, pas seulement les red flags : les deux partagent la
+    meme entree depuis la refonte "red flags only" — d'ou l'echantillon
+    unique `MAX_ROWS_RED_FLAGS` applique aux deux.
+    """
+    from ai.market_red_flags import evaluate_market, summarize
+    from ai.priority_score import assign_level, compute_priority_raw
 
     n = len(df)
     sample_idx = df.index[:MAX_ROWS_RED_FLAGS]
-    from ai.market_red_flags import evaluate_market, summarize
     rf_thresholds = artifacts["rf_thresholds"]
     rf_rows = []
     for i in sample_idx:
         flags = evaluate_market(df.loc[i], rf_thresholds)
-        rf_rows.append(summarize(flags))
+        row = summarize(flags)
+        for f in ("RF01", "RF02", "RF03"):
+            row[f] = flags[f]
+        rf_rows.append(row)
     rf_df = pd.DataFrame(rf_rows, index=sample_idx)
-    result = result.join(rf_df)
+    rf_df["priority_flag_count"] = sum(
+        (rf_df[f] == True).astype(int) for f in ("RF01", "RF02", "RF03"))  # noqa: E712
 
-    w_anomaly, w_flags = 0.5, 0.5
-    def _priority_raw(row):
-        flags_score = row.get("red_flag_score")
-        if pd.isna(flags_score) if flags_score is not None else True:
-            return float(row["anomaly_score_0_100"])
-        return float(w_anomaly * row["anomaly_score_0_100"] + w_flags * flags_score)
+    feat_df = _derive_model_features(rf_df, df.loc[sample_idx])
+    features = artifacts["features"]
+    X = feat_df[features].to_numpy(dtype=float)
 
-    result["priority_raw"] = result.apply(_priority_raw, axis=1)
-    seuils = artifacts["prio_seuils"]
-    if seuils:
-        def _prio_level(raw):
-            if raw >= seuils["p90"]:
-                return "Tres prioritaire"
-            if raw >= seuils["p80"]:
-                return "Prioritaire"
-            if raw >= seuils["p60"]:
-                return "A surveiller"
-            return "Faible"
-        result["priority_level"] = result["priority_raw"].apply(_prio_level)
+    raw = artifacts["model"].decision_function(X)
+    lo, hi = artifacts["lo"], artifacts["hi"]
+    anomaly_0_100 = np.clip(100 * (hi - raw) / (hi - lo), 0, 100) if hi > lo else raw * 0 + 50.0
+
+    result = rf_df.copy()
+    result["anomaly_score_0_100"] = anomaly_0_100
+    result["priority_raw"] = [
+        compute_priority_raw(pd.Series({"anomaly_score_0_100": a, "priority_flag_count": c}))
+        for a, c in zip(anomaly_0_100, rf_df["priority_flag_count"])]
+    result["priority_level"] = [assign_level(r, "Elevee") for r in result["priority_raw"]]
 
     result.attrs["sampled_red_flags"] = n > MAX_ROWS_RED_FLAGS
     result.attrs["sample_size"] = len(sample_idx)
@@ -320,39 +272,37 @@ def _render_scoring(df: pd.DataFrame, artifacts: dict) -> None:
             "Fiabilité non garantie hors corpus d'entraînement")
 
         st.markdown('<div style="height:var(--space-4)"></div>', unsafe_allow_html=True)
-        n_critique = int((scored["risk_level"] == "Critique").sum())
-        n_eleve = int((scored["risk_level"] == "Eleve").sum())
+        n_tres_prio = int((scored["priority_level"] == "Tres prioritaire").sum())
+        n_prio = int((scored["priority_level"] == "Prioritaire").sum())
+        n_trois_flags = int((scored["priority_flag_count"] == 3).sum())
         cards = [
-            ds.render_metric_card("Lignes scorées", f"{len(scored)}", "score d'anomalie",
-                                  size=22),
-            ds.render_metric_card("Risque critique", f"{n_critique}", "", size=22,
-                                  muted=n_critique == 0),
-            ds.render_metric_card("Risque élevé", f"{n_eleve}", "", size=22,
-                                  muted=n_eleve == 0),
+            ds.render_metric_card("Lignes scorées", f"{len(scored)}",
+                                  "red flags + score du modèle", size=22),
+            ds.render_metric_card("Très prioritaire", f"{n_tres_prio}", "", size=22,
+                                  muted=n_tres_prio == 0),
+            ds.render_metric_card("Prioritaire", f"{n_prio}", "", size=22,
+                                  muted=n_prio == 0),
+            ds.render_metric_card("3/3 red flags actifs", f"{n_trois_flags}",
+                                  "RF01+RF02+RF03", size=22, muted=n_trois_flags == 0),
         ]
-        if "red_flag_count" in scored.columns:
-            n_flagged = int((scored["red_flag_count"] > 0).sum())
-            cards.append(ds.render_metric_card(
-                "Red flag actif", f"{n_flagged}",
-                f"sur {int(scored['red_flag_count'].notna().sum())} évaluées",
-                size=22, muted=n_flagged == 0))
         ds.render_metric_row(cards)
 
         st.markdown('<div style="height:var(--space-4)"></div>', unsafe_allow_html=True)
         st.markdown('<h6 style="margin:0 0 var(--space-2);color:var(--color-neutral-600)">'
                     'Résultat par ligne — 20 premières</h6>', unsafe_allow_html=True)
         score_cols = [c for c in (
-            "anomaly_score_0_100", "risk_level", "red_flag_count", "red_flags_triggered",
-            "priority_level") if c in scored.columns]
+            "priority_flag_count", "anomaly_score_0_100", "red_flag_count",
+            "red_flags_triggered", "priority_level") if c in scored.columns]
         identity_cols = [c for c in _IDENTITY_COLS if c in df.columns][:3]
-        preview = df[identity_cols].join(scored[score_cols]).head(20)
+        preview = df.loc[scored.index, identity_cols].join(scored[score_cols]).head(20)
         st.dataframe(preview, use_container_width=True, hide_index=True)
 
         with st.expander("Voir toutes les colonnes calculées et déposées"):
             all_cols = [c for c in (
-                "anomaly_score_0_100", "risk_level", "red_flag_count", "red_flags_triggered",
-                "red_flag_score", "priority_raw", "priority_level") if c in scored.columns]
-            st.dataframe(df.join(scored[all_cols]).head(20),
+                "RF01", "RF02", "RF03", "priority_flag_count", "anomaly_score_0_100",
+                "red_flag_count", "red_flags_triggered", "red_flag_score",
+                "priority_raw", "priority_level") if c in scored.columns]
+            st.dataframe(df.loc[scored.index].join(scored[all_cols]).head(20),
                         use_container_width=True, hide_index=True)
 
 
