@@ -113,57 +113,7 @@ red flags 83, score de priorité 90, stabilité 10/10 sur 279 marchés scorés.
 signaux statistiques destinés à orienter une analyse humaine. Ils ne
 constituent ni une preuve ni une accusation de fraude. »*
 
-## Démarrer
 
-```bash
-cp .env.example .env
-pip install -r requirements.txt
-```
 
-Tesseract (binaire + packs `fra` et `ara`, le pack arabe est obligatoire) —
-voir `docs/onboarding.md` §0.
+- Dashboard :https://public-procurement-intelligence.streamlit.app/
 
-```bash
-docker compose up
-```
-- API : http://localhost:8000
-- Dashboard : http://localhost:8501
-
-## État du projet
-
-| Domaine | État |
-|---|---|
-| Scraping, OCR, extraction, base de données | ✅ implémentés |
-| Scoring (Isolation Forest), red flags, SHAP | ✅ implémentés |
-| API FastAPI (lecture seule) | ✅ implémentée |
-| Dashboard Streamlit | ✅ implémenté (4 pages) |
-| Authentification API (JWT) | ⏳ scaffoldée, hors scope actuel |
-| Stockage documentaire MinIO | ⏳ prévu (backlog Issue 4), pas encore intégré |
-
-Détail par Issue : [`docs/issues_backlog.md`](docs/issues_backlog.md).
-
-## Structure du dépôt
-
-```
-scraper/      Collecte PMMP (requests + BeautifulSoup)
-ocr/          Pipeline OCR Tesseract
-extraction/   Extraction regex/NER depuis le texte OCR
-database/     Modèles SQLAlchemy, CRUD
-bigdata/      Session et jobs PySpark (nettoyage, normalisation, agrégation)
-features/     Contrôle qualité des données
-ai/           Isolation Forest, red flags, SHAP, analyses pairs/temporelles
-api/          FastAPI (lecture seule)
-dashboard/    Application Streamlit (4 pages)
-scripts/      CLI de chaque étape du pipeline
-data/         Corpus, données traitées, échantillons annotés
-docs/         Documentation (onboarding, méthodologie, backlog, dictionnaire)
-Piplines/     Diagrammes et captures utilisés dans ce README
-```
-
-## Documentation
-
-- [`docs/onboarding.md`](docs/onboarding.md) — reproduire le pipeline pas à pas
-- [`docs/methodology.md`](docs/methodology.md) — choix méthodologiques
-- [`docs/data_dictionary.md`](docs/data_dictionary.md) — schéma des données
-- [`docs/dashboard.md`](docs/dashboard.md) — brief de conception du dashboard
-- [`docs/issues_backlog.md`](docs/issues_backlog.md) — suivi par Issue
